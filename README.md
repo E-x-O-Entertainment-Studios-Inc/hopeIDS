@@ -17,11 +17,21 @@ hopeIDS protects AI agents from prompt injection attacks, credential theft, data
 
 ## Installation
 
+### Via ClawHub (OpenClaw Agents)
+
+```bash
+clawhub install hopeids
+```
+
+This installs the hopeIDS skill into your OpenClaw workspace. The skill integrates with the built-in `security_scan` tool and provides patterns for IDS-first workflows.
+
+### Via npm (Node.js Apps)
+
 ```bash
 npm install hopeid
 ```
 
-Or use directly:
+### CLI (Quick Test)
 
 ```bash
 npx hopeid scan "your message here"
