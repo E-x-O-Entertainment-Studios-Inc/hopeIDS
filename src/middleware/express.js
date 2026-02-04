@@ -9,7 +9,14 @@
  * @module hopeid/middleware/express
  */
 
-const { HopeIDS } = require('../index');
+// Lazy-load to avoid circular dependency with index.js
+let HopeIDS = null;
+function getHopeIDS() {
+  if (!HopeIDS) {
+    HopeIDS = require('../index').HopeIDS;
+  }
+  return HopeIDS;
+}
 
 /**
  * Detect source type from request
@@ -195,8 +202,9 @@ function expressMiddleware(options = {}) {
     ...idsOptions
   } = options;
   
-  // Create hopeIDS instance
-  const ids = new HopeIDS({
+  // Create hopeIDS instance (lazy-load to avoid circular dep)
+  const IDS = getHopeIDS();
+  const ids = new IDS({
     semanticEnabled: false,  // Default to fast heuristic-only
     strictMode: false,
     ...idsOptions
