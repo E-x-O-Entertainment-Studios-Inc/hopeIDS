@@ -99,7 +99,7 @@ export default function register(api: PluginApi) {
       },
       required: ['message'],
     },
-    handler: async ({ message, source, senderId }: { message: string; source?: string; senderId?: string }) => {
+    execute: async (_id: string, { message, source, senderId }: { message: string; source?: string; senderId?: string }) => {
       if (!ids) {
         // Try loading again
         const mod = await loadHopeIDS();
@@ -112,7 +112,7 @@ export default function register(api: PluginApi) {
       }
 
       if (!ids) {
-        return { error: 'hopeIDS not initialized' };
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'hopeIDS not initialized' }) }] };
       }
 
       // Check if sender is trusted owner
@@ -120,12 +120,12 @@ export default function register(api: PluginApi) {
       const isTrustedOwner = cfg.trustOwners !== false && senderId && ownerNumbers.includes(senderId);
 
       if (isTrustedOwner) {
-        return {
+        return { content: [{ type: 'text', text: JSON.stringify({
           action: 'allow',
           riskScore: 0,
           message: 'Sender is a trusted owner',
           trusted: true,
-        };
+        }) }] };
       }
 
       const result = await ids.scanWithAlert(message, {
@@ -139,7 +139,7 @@ export default function register(api: PluginApi) {
         api.logger.warn(`[hopeIDS] Threat detected: ${result.intent} (${result.action})`);
       }
 
-      return {
+      return { content: [{ type: 'text', text: JSON.stringify({
         action: result.action,
         riskScore: result.riskScore,
         intent: result.intent,
@@ -147,7 +147,7 @@ export default function register(api: PluginApi) {
         alert: result.alert,
         notification: result.notification,
         elapsed: result.elapsed,
-      };
+      }) }] };
     },
   });
 
