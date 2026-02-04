@@ -13,10 +13,60 @@ class HeuristicLayer {
     this.options = {
       patternsDir: options.patternsDir || path.join(__dirname, '../patterns'),
       decodePayloads: options.decodePayloads !== false,
-      maxDecodeDepth: options.maxDecodeDepth || 2
+      maxDecodeDepth: options.maxDecodeDepth || 2,
+      normalizeUnicode: options.normalizeUnicode !== false
     };
     
     this._loadPatterns();
+  }
+
+  /**
+   * Normalize Unicode characters to ASCII equivalents
+   * Handles full-width characters and common homoglyphs
+   */
+  _normalizeUnicode(text) {
+    if (!this.options.normalizeUnicode) return text;
+
+    let normalized = text;
+
+    // Full-width to half-width (ASCII) conversion
+    normalized = normalized.replace(/[\uFF01-\uFF5E]/g, (ch) => {
+      return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+    });
+
+    // Full-width space to regular space
+    normalized = normalized.replace(/\u3000/g, ' ');
+
+    // Common homoglyph substitutions to ASCII
+    const homoglyphs = {
+      // Cyrillic lookalikes
+      'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x',
+      'і': 'i', 'ј': 'j', 'ѕ': 's', 'һ': 'h',
+      // Greek lookalikes
+      'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z', 'η': 'n',
+      'θ': 'o', 'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'u', 'ν': 'v', 'ξ': 'e',
+      'ο': 'o', 'π': 'n', 'ρ': 'p', 'σ': 'o', 'τ': 't', 'υ': 'u', 'φ': 'o',
+      'χ': 'x', 'ψ': 'w', 'ω': 'w',
+      // Other common substitutions
+      '０': '0', '１': '1', '２': '2', '３': '3', '４': '4',
+      '５': '5', '６': '6', '７': '7', '８': '8', '９': '9',
+      'Ａ': 'A', 'Ｂ': 'B', 'Ｃ': 'C', 'Ｄ': 'D', 'Ｅ': 'E',
+      'Ｆ': 'F', 'Ｇ': 'G', 'Ｈ': 'H', 'Ｉ': 'I', 'Ｊ': 'J',
+      'Ｋ': 'K', 'Ｌ': 'L', 'Ｍ': 'M', 'Ｎ': 'N', 'Ｏ': 'O',
+      'Ｐ': 'P', 'Ｑ': 'Q', 'Ｒ': 'R', 'Ｓ': 'S', 'Ｔ': 'T',
+      'Ｕ': 'U', 'Ｖ': 'V', 'Ｗ': 'W', 'Ｘ': 'X', 'Ｙ': 'Y', 'Ｚ': 'Z',
+      'ａ': 'a', 'ｂ': 'b', 'ｃ': 'c', 'ｄ': 'd', 'ｅ': 'e',
+      'ｆ': 'f', 'ｇ': 'g', 'ｈ': 'h', 'ｉ': 'i', 'ｊ': 'j',
+      'ｋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n', 'ｏ': 'o',
+      'ｐ': 'p', 'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't',
+      'ｕ': 'u', 'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x', 'ｙ': 'y', 'ｚ': 'z'
+    };
+
+    for (const [homoglyph, ascii] of Object.entries(homoglyphs)) {
+      normalized = normalized.replace(new RegExp(homoglyph, 'g'), ascii);
+    }
+
+    return normalized;
   }
 
   /**
@@ -62,6 +112,14 @@ class HeuristicLayer {
 
     // Scan original message
     this._scanText(message, flags, matches);
+    
+    // Normalize Unicode and rescan
+    if (this.options.normalizeUnicode) {
+      const normalized = this._normalizeUnicode(message);
+      if (normalized !== message) {
+        this._scanText(normalized, flags, matches, 'unicode_normalized');
+      }
+    }
     
     // Decode and rescan if enabled
     if (this.options.decodePayloads) {
