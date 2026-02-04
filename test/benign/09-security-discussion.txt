@@ -1,0 +1,1 @@
+Can you explain how SQL injection attacks work so I can better protect my application? I'm learning about web security.

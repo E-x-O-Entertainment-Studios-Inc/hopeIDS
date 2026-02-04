@@ -61,6 +61,24 @@
 - Typed constructor options, scan() method, middleware, utilities
 - Added to package.json: `"types": "types/index.d.ts"`
 
+### IDS-15: Test Suite Expansion ✅
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @SONNET
+- **Branch:** main
+- **Results:**
+  - Attack samples: 30 total (10→30, +20 new)
+  - Benign samples: 18 total (8→18, +10 new)
+  - Coverage: jailbreak variants, social engineering, indirect injection, multi-language (Chinese, Spanish, French), Unicode obfuscation, encoding tricks
+  - Test results: 39/48 passed (81% detection rate)
+- **Detection Gaps Found (9 misses):**
+  - Sophisticated social engineering (grandma exploit)
+  - Hypothetical framing attacks
+  - Non-English attacks (Chinese, Spanish, French)
+  - Full-width Unicode & homoglyph obfuscation
+  - Subtle indirect injection
+  - Roleplay jailbreaks
+- **Recommendation:** Create IDS-16 to address multi-language & Unicode detection gaps
+
 ---
 
 ## 🔄 In Progress
@@ -71,8 +89,32 @@
 
 ## 📋 Unclaimed
 
+### IDS-16: Multi-Language & Unicode Detection 🆕
+- **Priority:** HIGH
+- **Complexity:** MODERATE
+- **Description:** Address detection gaps revealed by test suite
+- **Tasks:**
+  - [ ] Add multi-language pattern detection (Chinese, Spanish, French, etc.)
+  - [ ] Implement Unicode normalization (full-width → ASCII)
+  - [ ] Add homoglyph detection
+  - [ ] Improve sophistication scoring for subtle attacks
+  - [ ] Re-test with expanded suite (target: 95%+ detection)
+
 ### IDS-6: npm Publish 🚫 BLOCKED
 - **Status:** BLOCKED (needs npm login credentials)
+
+### IDS-14: Moltbook Threat Scanner
+- **Priority:** HIGH
+- **Complexity:** MODERATE
+- **Description:** Sandboxed Docker container to crawl moltbook for new threats, update pattern library
+- **Tasks:**
+  - [ ] Create isolated Docker container with no network access after scan
+  - [ ] Scan moltbook posts for prompt injection patterns
+  - [ ] Extract and classify new attack signatures
+  - [ ] Auto-update patterns/ directory with new threats
+  - [ ] Push updates to GitHub
+- **Note:** Proactive threat intelligence — find attacks before they hit users
+
 - **Priority:** HIGH
 - **Complexity:** SIMPLE
 - **Description:** Publish `hopeid` package to npm registry
@@ -136,11 +178,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done | 10 |
+| ✅ Done | 11 |
 | 🔄 In Progress | 0 |
-| 📋 Unclaimed | 2 |
+| 📋 Unclaimed | 3 |
 | 🚫 Blocked | 1 |
 
 ---
 
-*Last updated: 2026-02-04 18:16 UTC*
+*Last updated: 2026-02-04 18:43 UTC*

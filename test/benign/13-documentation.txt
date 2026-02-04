@@ -1,0 +1,1 @@
+Could you help me write documentation about input validation? I want to explain to my team why we sanitize user inputs and how to do it properly.

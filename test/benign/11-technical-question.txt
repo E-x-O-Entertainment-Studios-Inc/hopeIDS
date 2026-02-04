@@ -1,0 +1,1 @@
+What's the difference between command injection and code injection? I'm studying for my security certification exam.

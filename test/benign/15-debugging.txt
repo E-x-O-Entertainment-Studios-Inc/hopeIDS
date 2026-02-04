@@ -1,0 +1,1 @@
+My application is crashing when users input special characters. I think it might be an encoding issue, not a security problem. How do I debug this?

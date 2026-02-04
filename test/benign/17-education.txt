@@ -1,0 +1,1 @@
+I'm teaching a class on cybersecurity basics. Can you recommend some good resources about defensive programming and secure coding practices?

@@ -1,0 +1,1 @@
+I'm reading about the OWASP Top 10. Can you explain what makes injection attacks so dangerous and how modern frameworks help prevent them?
