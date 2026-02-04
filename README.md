@@ -168,6 +168,103 @@ The middleware automatically:
 - Attaches warnings to `req.securityWarning`
 - Fails open on errors (doesn't break your app)
 
+### Hono Middleware
+
+**Drop-in protection for Hono:**
+
+```javascript
+import { Hono } from 'hono';
+import { honoMiddleware } from 'hopeid';
+
+const app = new Hono();
+
+// Basic usage - protects all routes
+app.use(honoMiddleware({ threshold: 0.7 }));
+
+app.post('/api/chat', async (c) => {
+  const body = await c.req.json();
+  // Your handler - threats are automatically blocked
+  return c.json({ reply: 'Safe message received' });
+});
+```
+
+**Custom handlers:**
+
+```javascript
+app.use(honoMiddleware({
+  threshold: 0.8,
+  onWarn: async (result, c, next) => {
+    // Log warning and continue
+    console.warn(`⚠️ ${result.intent} (${result.riskScore})`);
+    c.set('securityWarning', result);
+    await next();
+  },
+  onBlock: (result, c) => {
+    // Custom block response
+    return c.json({
+      error: 'Request blocked',
+      reason: result.message,
+      intent: result.intent
+    }, 403);
+  }
+}));
+```
+
+**Advanced configuration:**
+
+```javascript
+app.use(honoMiddleware({
+  // Enable semantic analysis for better detection
+  semanticEnabled: true,
+  llmEndpoint: 'http://localhost:1234/v1/chat/completions',
+  llmModel: 'qwen2.5-32b',
+  
+  // Custom thresholds
+  thresholds: {
+    warn: 0.4,
+    block: 0.8,
+    quarantine: 0.9
+  },
+  
+  // Extract user ID for context
+  getSenderId: (c) => c.get('user')?.id || c.req.header('x-forwarded-for'),
+  
+  // Control what to scan
+  scanQuery: true,  // Scan query parameters
+  scanBody: true,   // Scan request body
+  
+  // Strict mode
+  strictMode: false
+}));
+```
+
+**Route-specific protection:**
+
+```javascript
+// Protect only specific routes
+app.post('/api/chat', 
+  honoMiddleware({ threshold: 0.7 }),
+  async (c) => {
+    return c.json({ reply: 'Protected endpoint' });
+  }
+);
+
+// Different thresholds for different routes
+app.post('/api/admin', 
+  honoMiddleware({ threshold: 0.5, strictMode: true }),
+  async (c) => {
+    return c.json({ message: 'Admin action' });
+  }
+);
+```
+
+The middleware automatically:
+- Scans `c.req.json()` and `c.req.query()` for threats
+- Detects source type from content-type and path
+- Returns 403 JSON on block (customizable)
+- Attaches warnings to context via `c.set('securityWarning', result)`
+- Fails open on errors (doesn't break your app)
+
 ### OpenClaw Plugin
 
 ```javascript

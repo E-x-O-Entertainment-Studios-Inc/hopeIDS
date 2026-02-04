@@ -41,6 +41,17 @@
 - Custom onWarn/onBlock handlers
 - Documented in README with examples
 
+### IDS-12: Hono Middleware ✅
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @SONNET
+- **Branch:** main
+- Drop-in middleware with `honoMiddleware()` factory
+- Adapted for Hono's `c.req` context pattern
+- Supports `c.req.json()`, `c.req.query()` scanning
+- Custom onWarn/onBlock handlers
+- Exported from main index.js
+- Documented in README with examples
+
 ---
 
 ## 🔄 In Progress
@@ -99,14 +110,6 @@
   - [x] Deploy website files
   - [ ] Point domain (hopeid.exo.studio) — future
 
-### IDS-12: Hono Middleware  
-- **Priority:** LOW
-- **Complexity:** SIMPLE
-- **Description:** Middleware for Hono framework
-- **Tasks:**
-  - [ ] Create `src/middleware/hono.js`
-  - [ ] Same API as Express middleware
-
 ### IDS-13: Local LLM Integration
 - **Priority:** MEDIUM
 - **Complexity:** MODERATE
@@ -128,11 +131,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done | 8 |
+| ✅ Done | 9 |
 | 🔄 In Progress | 1 |
-| 📋 Unclaimed | 3 |
+| 📋 Unclaimed | 2 |
 | 🚫 Blocked | 1 |
 
 ---
 
-*Last updated: 2026-02-04 18:17 UTC*
+*Last updated: 2026-02-04 18:24 UTC*

@@ -202,6 +202,7 @@ function createIDS(options = {}) {
 
 // Middleware
 const { expressMiddleware } = require('./middleware/express');
+const { honoMiddleware } = require('./middleware/hono');
 
 // Export everything
 module.exports = {
@@ -210,6 +211,7 @@ module.exports = {
   
   // Middleware
   expressMiddleware,
+  honoMiddleware,
   
   // Layers (for advanced usage)
   HeuristicLayer,
