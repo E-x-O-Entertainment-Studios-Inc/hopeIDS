@@ -25,6 +25,8 @@ clawhub install hopeids
 
 This installs the hopeIDS skill into your OpenClaw workspace. The skill integrates with the built-in `security_scan` tool and provides patterns for IDS-first workflows.
 
+📖 **[How to Set Up a Sandboxed AI Agent](https://exohaven.online/blog/sandboxed-agents-security-guide)** — Full guide on workspace isolation, IDS-first workflows, and protecting agents from prompt injection.
+
 ### Via npm (Node.js Apps)
 
 ```bash
