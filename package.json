@@ -7,6 +7,9 @@
   "bin": {
     "hopeid": "./cli/hopeid.js"
   },
+  "openclaw": {
+    "extensions": ["./extensions/openclaw-plugin"]
+  },
   "scripts": {
     "test": "node cli/hopeid.js test",
     "cli": "node cli/hopeid.js"
@@ -42,6 +45,7 @@
     "src/",
     "cli/",
     "types/",
+    "extensions/",
     "README.md",
     "LICENSE"
   ],
