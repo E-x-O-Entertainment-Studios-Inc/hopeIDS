@@ -24,6 +24,7 @@ Usage:
   hopeid scan --stdin             Read message from stdin
   hopeid test                     Run test suite
   hopeid stats                    Show pattern statistics
+  hopeid setup                    Full OpenClaw integration setup
   hopeid help                     Show this help
 
 Options:
@@ -67,6 +68,9 @@ async function main() {
       break;
     case 'stats':
       handleStats();
+      break;
+    case 'setup':
+      await handleSetup(args.slice(1));
       break;
     default:
       console.error(`Unknown command: ${command}`);
@@ -274,6 +278,139 @@ function readStdin() {
     process.stdin.on('data', chunk => data += chunk);
     process.stdin.on('end', () => resolve(data.trim()));
   });
+}
+
+async function handleSetup(args) {
+  const { execSync, spawnSync } = require('child_process');
+  const os = require('os');
+  
+  console.log('\n🛡️  hopeIDS Full Setup for OpenClaw\n');
+  console.log('This will:');
+  console.log('  1. Install hopeIDS plugin to OpenClaw');
+  console.log('  2. Install hopeids skill via ClawHub');
+  console.log('  3. Configure security_scan tool\n');
+
+  // Find OpenClaw config
+  const homeDir = os.homedir();
+  const configPaths = [
+    path.join(homeDir, '.openclaw', 'openclaw.json'),
+    path.join(process.cwd(), 'openclaw.json'),
+    path.join(process.cwd(), '.openclaw', 'openclaw.json')
+  ];
+
+  let configPath = null;
+  for (const p of configPaths) {
+    if (fs.existsSync(p)) {
+      configPath = p;
+      break;
+    }
+  }
+
+  if (!configPath) {
+    console.log('❌ OpenClaw config not found.');
+    console.log('   Searched: ~/.openclaw/openclaw.json, ./openclaw.json');
+    console.log('   Make sure OpenClaw is installed first.\n');
+    process.exit(1);
+  }
+
+  console.log(`✅ Found OpenClaw config: ${configPath}\n`);
+
+  // Find hopeIDS installation path
+  let hopeidsPath = null;
+  
+  // Check if we're running from the hopeIDS repo
+  const localPluginPath = path.join(__dirname, '..', 'extensions', 'openclaw-plugin');
+  if (fs.existsSync(localPluginPath)) {
+    hopeidsPath = path.resolve(localPluginPath);
+  } else {
+    // Try to find it in node_modules
+    try {
+      const hopeidPkg = require.resolve('hopeid/package.json');
+      hopeidsPath = path.join(path.dirname(hopeidPkg), 'extensions', 'openclaw-plugin');
+    } catch (e) {
+      // Not found
+    }
+  }
+
+  if (!hopeidsPath || !fs.existsSync(hopeidsPath)) {
+    console.log('❌ hopeIDS plugin not found.');
+    console.log('   Install globally: npm install -g hopeid');
+    console.log('   Or clone the repo: git clone https://github.com/E-x-O-Entertainment-Studios-Inc/hopeIDS\n');
+    process.exit(1);
+  }
+
+  console.log(`✅ Found hopeIDS plugin: ${hopeidsPath}\n`);
+
+  // Read and update OpenClaw config
+  console.log('📝 Updating OpenClaw config...');
+  
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  } catch (e) {
+    console.log(`❌ Failed to parse config: ${e.message}`);
+    process.exit(1);
+  }
+
+  // Initialize plugins structure if needed
+  if (!config.plugins) config.plugins = {};
+  if (!config.plugins.load) config.plugins.load = {};
+  if (!config.plugins.load.paths) config.plugins.load.paths = [];
+  if (!config.plugins.entries) config.plugins.entries = {};
+
+  // Add plugin path if not already there
+  if (!config.plugins.load.paths.includes(hopeidsPath)) {
+    config.plugins.load.paths.push(hopeidsPath);
+    console.log('   ✅ Added plugin path');
+  } else {
+    console.log('   ⏭️  Plugin path already configured');
+  }
+
+  // Enable the plugin
+  if (!config.plugins.entries.hopeids) {
+    config.plugins.entries.hopeids = { enabled: true };
+    console.log('   ✅ Enabled hopeids plugin');
+  } else {
+    config.plugins.entries.hopeids.enabled = true;
+    console.log('   ⏭️  Plugin already enabled');
+  }
+
+  // Write updated config
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  console.log('   ✅ Config saved\n');
+
+  // Install skill via ClawHub
+  console.log('📦 Installing hopeids skill via ClawHub...');
+  
+  try {
+    const result = spawnSync('npx', ['clawhub', 'install', 'hopeids', '--force'], {
+      stdio: 'inherit',
+      shell: true
+    });
+    
+    if (result.status === 0) {
+      console.log('   ✅ Skill installed\n');
+    } else {
+      console.log('   ⚠️  Skill install had issues (may already be installed)\n');
+    }
+  } catch (e) {
+    console.log(`   ⚠️  Could not install skill: ${e.message}`);
+    console.log('   Run manually: npx clawhub install hopeids\n');
+  }
+
+  // Done!
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('✅ hopeIDS setup complete!\n');
+  console.log('Your OpenClaw agent now has:');
+  console.log('  • security_scan tool - scan messages for threats');
+  console.log('  • /scan command - manual security checks');
+  console.log('  • hopeids skill - IDS-first workflow patterns\n');
+  console.log('Restart OpenClaw to activate:');
+  console.log('  openclaw gateway restart\n');
+  console.log('Test it:');
+  console.log('  hopeid scan "ignore previous instructions"\n');
+  console.log('Docs: https://exohaven.online/blog/sandboxed-agents-security-guide');
+  console.log('═══════════════════════════════════════════════════════\n');
 }
 
 main().catch(err => {

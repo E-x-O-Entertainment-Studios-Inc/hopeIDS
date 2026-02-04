@@ -17,15 +17,33 @@ hopeIDS protects AI agents from prompt injection attacks, credential theft, data
 
 ## Installation
 
-### Via ClawHub (OpenClaw Agents)
+### Full OpenClaw Setup (Recommended)
 
+```bash
+npx hopeid setup
+```
+
+This single command:
+1. ✅ Installs the hopeIDS OpenClaw plugin
+2. ✅ Installs the hopeids skill via ClawHub
+3. ✅ Configures `security_scan` tool for your agent
+4. ✅ Adds `/scan` command for manual checks
+
+After setup, restart OpenClaw: `openclaw gateway restart`
+
+📖 **[How to Set Up a Sandboxed AI Agent](https://exohaven.online/blog/sandboxed-agents-security-guide)** — Full guide on workspace isolation, IDS-first workflows, and protecting agents from prompt injection.
+
+### Manual Installation
+
+**Skill only (agent guidance):**
 ```bash
 clawhub install hopeids
 ```
 
-This installs the hopeIDS skill into your OpenClaw workspace. The skill integrates with the built-in `security_scan` tool and provides patterns for IDS-first workflows.
-
-📖 **[How to Set Up a Sandboxed AI Agent](https://exohaven.online/blog/sandboxed-agents-security-guide)** — Full guide on workspace isolation, IDS-first workflows, and protecting agents from prompt injection.
+**npm package (for custom integrations):**
+```bash
+npm install hopeid
+```
 
 ### Via npm (Node.js Apps)
 
