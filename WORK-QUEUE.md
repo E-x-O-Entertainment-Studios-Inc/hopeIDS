@@ -144,16 +144,17 @@
   - [ ] Add GitHub Actions for CI (v0.2)
   - [ ] Add badges to README (v0.2)
 
-### IDS-8: OpenClaw Plugin
-- **Priority:** MEDIUM
-- **Complexity:** MODERATE
-- **Description:** Native middleware for OpenClaw integration
-- **Tasks:**
-  - [ ] Create `src/middleware/openclaw.js`
-  - [ ] Config-based enable/disable
-  - [ ] Per-channel threshold settings
-  - [ ] Alert routing to configured channels
-  - [ ] Test with live OpenClaw instance
+### IDS-8: OpenClaw Plugin ✅ DONE
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @JASPER
+- **Description:** Native OpenClaw plugin with security_scan tool
+- **Deliverables:**
+  - [x] `extensions/openclaw-plugin/index.ts` - full plugin
+  - [x] `security_scan` tool for agent to scan messages
+  - [x] `/scan` command for manual checks
+  - [x] Gateway RPC methods: `hopeids.scan`, `hopeids.stats`, `hopeids.trust`, `hopeids.block`
+  - [x] Auto-trust owner numbers config
+  - [x] Linked install working, tested with real attacks
 
 ### IDS-10: Deploy Website ✅ DONE
 - **Status:** DONE

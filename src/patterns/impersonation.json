@@ -62,6 +62,16 @@
       "regex": "authorized\\s+(by|from)|with\\s+admin\\s+privileges",
       "description": "Authorization claims",
       "examples": ["authorized by your developers"]
+    },
+    {
+      "regex": "\\*?-{2,}\\s*(Reply|Message|Forwarded|Sent)\\s+(from|by)\\s+[A-Za-z0-9_]+",
+      "description": "Embedded agent signature (social engineering)",
+      "examples": ["---Reply from SAM_Agent---", "*Message from TrustedBot*"]
+    },
+    {
+      "regex": "^\\*(Reply|Response|Message)\\s+from\\s+[A-Za-z0-9_]+\\*$",
+      "description": "Signature line impersonation",
+      "examples": ["*Reply from OfficialAgent*"]
     }
   ]
 }
