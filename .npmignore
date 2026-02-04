@@ -1,0 +1,17 @@
+# Development files
+test/
+docker/
+website/
+docs/
+.git/
+.gitignore
+
+# Config files
+docker-compose.yml
+ROADMAP.md
+WORK-QUEUE.md
+*.log
+
+# IDE
+.vscode/
+.idea/
