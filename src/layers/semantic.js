@@ -48,12 +48,16 @@ Respond ONLY with valid JSON (no markdown):
 class SemanticLayer {
   constructor(options = {}) {
     this.options = {
+      llmProvider: options.llmProvider || process.env.LLM_PROVIDER || 'auto',
       llmEndpoint: options.llmEndpoint || process.env.LLM_ENDPOINT,
       llmModel: options.llmModel || process.env.LLM_MODEL || 'gpt-3.5-turbo',
       apiKey: options.apiKey || process.env.OPENAI_API_KEY,
       timeout: options.timeout || 10000,
       enabled: options.enabled !== false
     };
+    
+    // Cache for provider detection
+    this._detectedProvider = null;
   }
 
   /**
@@ -61,10 +65,29 @@ class SemanticLayer {
    */
   async classify(message, context = {}) {
     if (!this.options.enabled) {
-      return this._fallbackClassification(context);
+      return {
+        layer: 'semantic',
+        ...this._fallbackClassification(context),
+        elapsed: 0,
+        error: 'Semantic analysis disabled'
+      };
     }
 
     const startTime = Date.now();
+    
+    // Auto-detect provider if needed
+    if (this.options.llmProvider === 'auto' && !this._detectedProvider) {
+      const detected = await this._detectProvider();
+      
+      if (!detected) {
+        return {
+          layer: 'semantic',
+          ...this._fallbackClassification(context),
+          elapsed: Date.now() - startTime,
+          error: 'No LLM provider available (Ollama, LM Studio, or OpenAI)'
+        };
+      }
+    }
     
     const prompt = CLASSIFICATION_PROMPT
       .replace('{message}', message.substring(0, 2000))
@@ -79,7 +102,8 @@ class SemanticLayer {
         layer: 'semantic',
         ...parsed,
         elapsed: Date.now() - startTime,
-        model: this.options.llmModel
+        model: this.options.llmModel,
+        provider: this._detectedProvider || this.options.llmProvider
       };
     } catch (error) {
       return {
@@ -92,21 +116,136 @@ class SemanticLayer {
   }
 
   /**
+   * Auto-detect available LLM provider
+   */
+  async _detectProvider() {
+    // Try providers in order: Ollama, LM Studio, OpenAI
+    const providers = [
+      { name: 'ollama', endpoint: 'http://localhost:11434', testPath: '/api/tags' },
+      { name: 'lmstudio', endpoint: 'http://localhost:1234', testPath: '/v1/models' }
+    ];
+
+    for (const provider of providers) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const response = await fetch(`${provider.endpoint}${provider.testPath}`, {
+          method: 'GET',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          this._detectedProvider = provider.name;
+          
+          // Auto-set endpoint if not explicitly configured
+          if (!this.options.llmEndpoint) {
+            this.options.llmEndpoint = provider.name === 'ollama' 
+              ? 'http://localhost:11434/v1/chat/completions'
+              : 'http://localhost:1234/v1/chat/completions';
+          }
+          
+          // Try to get available models for better defaults
+          if (provider.name === 'ollama' && this.options.llmModel === 'gpt-3.5-turbo') {
+            await this._detectOllamaModel();
+          }
+          
+          return true;
+        }
+      } catch (error) {
+        // Provider not available, continue
+      }
+    }
+    
+    // Fallback to OpenAI if API key is available
+    if (this.options.apiKey) {
+      this._detectedProvider = 'openai';
+      return true;
+    }
+    
+    // No provider available - disable semantic analysis gracefully
+    this._detectedProvider = 'none';
+    this.options.enabled = false;
+    return false;
+  }
+
+  /**
+   * Detect available Ollama models and pick a good default
+   */
+  async _detectOllamaModel() {
+    try {
+      const response = await fetch('http://localhost:11434/api/tags');
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      const models = data.models || [];
+      
+      // Prefer models in this order
+      const preferredModels = ['qwen2.5', 'qwen', 'mistral', 'llama3', 'llama'];
+      
+      for (const preferred of preferredModels) {
+        const found = models.find(m => m.name.toLowerCase().includes(preferred));
+        if (found) {
+          this.options.llmModel = found.name;
+          return;
+        }
+      }
+      
+      // Use first available model
+      if (models.length > 0) {
+        this.options.llmModel = models[0].name;
+      }
+    } catch (error) {
+      // Ignore, keep default model
+    }
+  }
+
+  /**
+   * Get endpoint for current provider
+   */
+  _getEndpoint() {
+    if (this.options.llmEndpoint) {
+      return this.options.llmEndpoint;
+    }
+    
+    const provider = this._detectedProvider || this.options.llmProvider;
+    
+    switch (provider) {
+      case 'ollama':
+        return 'http://localhost:11434/v1/chat/completions';
+      case 'lmstudio':
+        return 'http://localhost:1234/v1/chat/completions';
+      case 'openai':
+      default:
+        return 'https://api.openai.com/v1/chat/completions';
+    }
+  }
+
+  /**
    * Call LLM endpoint (OpenAI-compatible API)
    */
   async _callLLM(prompt) {
-    const endpoint = this.options.llmEndpoint || 'https://api.openai.com/v1/chat/completions';
+    const endpoint = this._getEndpoint();
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.options.timeout);
 
     try {
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Only add auth for OpenAI (local LLMs don't need it)
+      const provider = this._detectedProvider || this.options.llmProvider;
+      if ((provider === 'openai' || provider === 'auto') && this.options.apiKey) {
+        headers['Authorization'] = `Bearer ${this.options.apiKey}`;
+      }
+      
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.options.apiKey && { 'Authorization': `Bearer ${this.options.apiKey}` })
-        },
+        headers,
         body: JSON.stringify({
           model: this.options.llmModel,
           messages: [{ role: 'user', content: prompt }],

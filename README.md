@@ -56,6 +56,102 @@ console.log(result2.action); // 'block'
 console.log(result2.message); // "Nope. 'Ignore previous instructions' doesn't work on me..."
 ```
 
+## Local LLM Support
+
+**hopeIDS works out-of-the-box with local LLMs!** No OpenAI API key required.
+
+### Supported Providers
+
+- **Ollama** (recommended) — `http://localhost:11434`
+- **LM Studio** — `http://localhost:1234`
+- **OpenAI** — Cloud-based (requires API key)
+- **Auto-detect** — Automatically finds running local LLM
+
+### Quick Setup
+
+**1. Install Ollama:**
+
+```bash
+# macOS/Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a recommended model
+ollama pull qwen2.5:7b
+```
+
+**2. Use hopeIDS:**
+
+```javascript
+const { HopeIDS } = require('hopeid');
+
+// Auto-detect (finds Ollama/LM Studio automatically)
+const ids = new HopeIDS({
+  semanticEnabled: true,
+  llmProvider: 'auto'  // default
+});
+
+// Explicitly use Ollama
+const ids = new HopeIDS({
+  semanticEnabled: true,
+  llmProvider: 'ollama',
+  llmModel: 'qwen2.5:7b'
+});
+
+// Explicitly use LM Studio
+const ids = new HopeIDS({
+  semanticEnabled: true,
+  llmProvider: 'lmstudio',
+  llmModel: 'qwen2.5-32b'
+});
+```
+
+### Recommended Models
+
+For **best accuracy**, use these models:
+
+| Model | Size | Provider | Accuracy | Speed |
+|-------|------|----------|----------|-------|
+| `qwen2.5:32b` | 20GB | Ollama, LM Studio | ⭐⭐⭐⭐⭐ | ⚡⚡ |
+| `qwen2.5:14b` | 9GB | Ollama, LM Studio | ⭐⭐⭐⭐ | ⚡⚡⚡ |
+| `qwen2.5:7b` | 4.7GB | Ollama, LM Studio | ⭐⭐⭐ | ⚡⚡⚡⚡ |
+| `mistral:7b` | 4.1GB | Ollama, LM Studio | ⭐⭐⭐ | ⚡⚡⚡⚡ |
+| `llama3:8b` | 4.7GB | Ollama, LM Studio | ⭐⭐⭐ | ⚡⚡⚡ |
+| `gpt-4o-mini` | Cloud | OpenAI | ⭐⭐⭐⭐⭐ | ⚡⚡⚡⚡ |
+| `gpt-3.5-turbo` | Cloud | OpenAI | ⭐⭐⭐⭐ | ⚡⚡⚡⚡⚡ |
+
+**For production:** Use `qwen2.5:14b` or larger for best threat detection.  
+**For development:** Use `qwen2.5:7b` or `mistral:7b` for fast iteration.  
+**For edge devices:** Use `qwen2.5:3b` (not recommended for production).
+
+### Environment Variables
+
+```bash
+# Auto-detect (default)
+export LLM_PROVIDER=auto
+
+# Force Ollama
+export LLM_PROVIDER=ollama
+export LLM_MODEL=qwen2.5:7b
+
+# Force LM Studio
+export LLM_PROVIDER=lmstudio
+export LLM_ENDPOINT=http://localhost:1234/v1/chat/completions
+export LLM_MODEL=qwen2.5-14b
+
+# Use OpenAI
+export LLM_PROVIDER=openai
+export OPENAI_API_KEY=sk-...
+export LLM_MODEL=gpt-4o-mini
+```
+
+### Why Local LLMs?
+
+- ✅ **Privacy**: Your data never leaves your machine
+- ✅ **Cost**: No per-token charges
+- ✅ **Speed**: Low-latency inference
+- ✅ **Offline**: Works without internet
+- ✅ **Control**: Fine-tune for your use case
+
 ## CLI Usage
 
 ```bash
@@ -308,8 +404,16 @@ The middleware automatically:
 const ids = new HopeIDS({
   // Enable LLM-based semantic analysis
   semanticEnabled: true,
-  llmEndpoint: 'http://localhost:1234/v1/chat/completions',
-  llmModel: 'qwen2.5-32b',
+  
+  // LLM Provider (auto-detects by default)
+  llmProvider: 'auto', // 'openai' | 'ollama' | 'lmstudio' | 'auto'
+  llmModel: 'qwen2.5:7b', // Auto-selected if using Ollama
+  
+  // Or manually specify endpoint
+  llmEndpoint: 'http://localhost:11434/v1/chat/completions',
+  
+  // Only needed for OpenAI
+  apiKey: process.env.OPENAI_API_KEY,
   
   // Risk thresholds
   thresholds: {

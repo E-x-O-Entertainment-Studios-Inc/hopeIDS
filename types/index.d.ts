@@ -57,11 +57,13 @@ export interface HopeIDSOptions {
   strictMode?: boolean;
   /** Custom thresholds for decision layer */
   thresholds?: Partial<DecisionThresholds>;
+  /** LLM provider: 'openai' | 'ollama' | 'lmstudio' | 'auto' (default: 'auto') */
+  llmProvider?: 'openai' | 'ollama' | 'lmstudio' | 'auto';
   /** LLM endpoint URL (OpenAI-compatible) */
   llmEndpoint?: string;
   /** LLM model name */
   llmModel?: string;
-  /** API key for LLM */
+  /** API key for LLM (only needed for OpenAI) */
   apiKey?: string;
   /** Logging level */
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -135,6 +137,7 @@ export interface SemanticResult {
   recommendedAction: Action;
   elapsed: number;
   model?: string;
+  provider?: string;
   error?: string;
   parseError?: string;
 }
@@ -279,6 +282,7 @@ export declare class HeuristicLayer {
 
 export declare class SemanticLayer {
   constructor(options?: {
+    llmProvider?: 'openai' | 'ollama' | 'lmstudio' | 'auto';
     llmEndpoint?: string;
     llmModel?: string;
     apiKey?: string;
