@@ -1,0 +1,79 @@
+{
+  "name": "encoding",
+  "description": "Patterns detecting obfuscated or encoded payloads",
+  "risk": 0.4,
+  "action": "decode_and_rescan",
+  "patterns": [
+    {
+      "regex": "[A-Za-z0-9+/]{30,}={0,2}",
+      "description": "Base64 encoded string",
+      "decoder": "base64",
+      "examples": ["aWdub3JlIHByZXZpb3VzIGluc3RydWN0aW9ucw=="]
+    },
+    {
+      "regex": "\\\\x[0-9a-fA-F]{2}",
+      "description": "Hex escape sequences",
+      "decoder": "hex",
+      "examples": ["\\x69\\x67\\x6e\\x6f\\x72\\x65"]
+    },
+    {
+      "regex": "\\\\u[0-9a-fA-F]{4}",
+      "description": "Unicode escape sequences",
+      "decoder": "unicode",
+      "examples": ["\\u0069\\u0067\\u006e\\u006f\\u0072\\u0065"]
+    },
+    {
+      "regex": "(%[0-9a-fA-F]{2}){3,}",
+      "description": "URL encoded string",
+      "decoder": "url",
+      "examples": ["%69%67%6e%6f%72%65"]
+    },
+    {
+      "regex": "(&#\\d+;){3,}",
+      "description": "HTML decimal entities",
+      "decoder": "html_decimal",
+      "examples": ["&#105;&#103;&#110;&#111;&#114;&#101;"]
+    },
+    {
+      "regex": "(&#x[0-9a-fA-F]+;){3,}",
+      "description": "HTML hex entities",
+      "decoder": "html_hex",
+      "examples": ["&#x69;&#x67;&#x6e;&#x6f;&#x72;&#x65;"]
+    },
+    {
+      "regex": "atob\\s*\\(|btoa\\s*\\(",
+      "description": "JavaScript base64 functions",
+      "examples": ["atob('aWdub3Jl')"]
+    },
+    {
+      "regex": "Buffer\\.from\\s*\\([^,]+,\\s*['\"]base64['\"]",
+      "description": "Node.js Buffer base64",
+      "examples": ["Buffer.from('aWdub3Jl', 'base64')"]
+    },
+    {
+      "regex": "fromCharCode|String\\.fromCodePoint",
+      "description": "Character code construction",
+      "examples": ["String.fromCharCode(105,103,110,111,114,101)"]
+    },
+    {
+      "regex": "\\.split\\s*\\(['\"]['\"]\\)\\s*\\.reverse\\s*\\(",
+      "description": "String reversal obfuscation",
+      "examples": ["'erongi'.split('').reverse().join('')"]
+    },
+    {
+      "regex": "rot13|caesar|cipher",
+      "description": "Known encoding terms",
+      "examples": ["decode this rot13: vtaber"]
+    },
+    {
+      "regex": "[\\u200b\\u200c\\u200d\\ufeff]",
+      "description": "Zero-width characters (invisible text)",
+      "examples": ["hidden\u200btext"]
+    },
+    {
+      "regex": "[\\u0300-\\u036f]{3,}",
+      "description": "Combining diacritical marks (zalgo)",
+      "examples": ["t̷̢e̸̡x̶̢t̷̨"]
+    }
+  ]
+}

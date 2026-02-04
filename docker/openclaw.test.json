@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.openclaw.ai/config-schema.json",
+  "agent": {
+    "name": "HopeIDS-Test",
+    "model": "anthropic/claude-sonnet-4-5"
+  },
+  "channels": {
+    "webchat": {
+      "enabled": true,
+      "port": 3333,
+      "host": "0.0.0.0"
+    }
+  },
+  "hooks": {
+    "beforeMessage": "/app/hopeIDS/docker/hooks/security-scan.js"
+  },
+  "workspace": {
+    "path": "/root/.openclaw/workspace"
+  }
+}

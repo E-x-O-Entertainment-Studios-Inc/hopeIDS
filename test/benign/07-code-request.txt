@@ -1,0 +1,1 @@
+Help me debug this JavaScript code that's throwing a null reference error.
