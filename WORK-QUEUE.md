@@ -31,36 +31,52 @@
 - **Completed:** 2026-02-04 by @JASPER
 - AGPL-3.0 with commercial option
 
+### IDS-11: Express Middleware ✅
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @SONNET
+- **Branch:** main
+- Drop-in middleware with `expressMiddleware()` factory
+- Auto-scans req.body and req.query
+- Source detection from content-type/path
+- Custom onWarn/onBlock handlers
+- Documented in README with examples
+
 ---
 
 ## 🔄 In Progress
 
-*None*
+### IDS-9: TypeScript Types 🔄
+- **Status:** IN PROGRESS
+- **Assigned:** @QWEN (2026-02-04 18:16 UTC)
+- **Priority:** MEDIUM
+- **Description:** Add TypeScript definitions for npm package
 
 ---
 
 ## 📋 Unclaimed
 
-### IDS-6: npm Publish
+### IDS-6: npm Publish 🚫 BLOCKED
+- **Status:** BLOCKED (needs npm login credentials)
 - **Priority:** HIGH
 - **Complexity:** SIMPLE
 - **Description:** Publish `hopeid` package to npm registry
 - **Tasks:**
-  - [ ] Update package.json with final metadata
-  - [ ] Add .npmignore (exclude test/, docker/, website/)
+  - [x] Update package.json with final metadata
+  - [x] Add .npmignore (exclude test/, docker/, website/)
+  - [ ] Run `npm login` (Kiarra)
   - [ ] Run `npm publish`
   - [ ] Verify installation works: `npx hopeid stats`
 
-### IDS-7: GitHub Repository Setup
-- **Priority:** HIGH  
-- **Complexity:** SIMPLE
-- **Description:** Create public repo and push code
+### IDS-7: GitHub Repository Setup ✅ DONE
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @JASPER
+- **URL:** https://github.com/E-x-O-Entertainment-Studios-Inc/hopeIDS
 - **Tasks:**
-  - [ ] Create repo: `E-x-O-Entertainment-Studios-Inc/hopeIDS`
-  - [ ] Initialize git in `/home/jasper/projects/hopeIDS`
-  - [ ] Push all code
-  - [ ] Add GitHub Actions for CI
-  - [ ] Add badges to README
+  - [x] Create repo: `E-x-O-Entertainment-Studios-Inc/hopeIDS`
+  - [x] Initialize git in `/home/jasper/projects/hopeIDS`
+  - [x] Push all code
+  - [ ] Add GitHub Actions for CI (v0.2)
+  - [ ] Add badges to README (v0.2)
 
 ### IDS-8: OpenClaw Plugin
 - **Priority:** MEDIUM
@@ -73,34 +89,15 @@
   - [ ] Alert routing to configured channels
   - [ ] Test with live OpenClaw instance
 
-### IDS-9: TypeScript Types
-- **Priority:** MEDIUM
-- **Complexity:** SIMPLE
-- **Description:** Add TypeScript definitions for npm package
+### IDS-10: Deploy Website ✅ DONE
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @JASPER
+- **URL:** https://localhost-1.tail582d68.ts.net:1605
 - **Tasks:**
-  - [ ] Create `types/index.d.ts`
-  - [ ] Export all public interfaces
-  - [ ] Add to package.json "types" field
-
-### IDS-10: Deploy Website
-- **Priority:** HIGH
-- **Complexity:** SIMPLE
-- **Description:** Deploy hopeIDS website to production
-- **Tasks:**
-  - [ ] Set up nginx on target Linode
-  - [ ] Configure SSL (Let's Encrypt or Tailscale)
-  - [ ] Deploy website files
-  - [ ] Point domain (hopeid.exo.studio or similar)
-
-### IDS-11: Express Middleware
-- **Priority:** MEDIUM
-- **Complexity:** MODERATE
-- **Description:** Drop-in Express.js middleware
-- **Tasks:**
-  - [ ] Create `src/middleware/express.js`
-  - [ ] Request body scanning
-  - [ ] Configurable error responses
-  - [ ] Add to README with examples
+  - [x] Set up nginx on localhost-1
+  - [x] Configure Tailscale SSL
+  - [x] Deploy website files
+  - [ ] Point domain (hopeid.exo.studio) — future
 
 ### IDS-12: Hono Middleware  
 - **Priority:** LOW
@@ -131,11 +128,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done | 5 |
-| 🔄 In Progress | 0 |
-| 📋 Unclaimed | 8 |
-| 🚫 Blocked | 0 |
+| ✅ Done | 8 |
+| 🔄 In Progress | 1 |
+| 📋 Unclaimed | 3 |
+| 🚫 Blocked | 1 |
 
 ---
 
-*Last updated: 2026-02-04 18:10 UTC*
+*Last updated: 2026-02-04 18:17 UTC*

@@ -200,10 +200,16 @@ function createIDS(options = {}) {
   return new HopeIDS(options);
 }
 
+// Middleware
+const { expressMiddleware } = require('./middleware/express');
+
 // Export everything
 module.exports = {
   HopeIDS,
   createIDS,
+  
+  // Middleware
+  expressMiddleware,
   
   // Layers (for advanced usage)
   HeuristicLayer,

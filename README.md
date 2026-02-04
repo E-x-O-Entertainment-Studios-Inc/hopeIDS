@@ -73,31 +73,100 @@ hopeid test
 
 ### Express Middleware
 
+**Drop-in protection with one line:**
+
 ```javascript
 const express = require('express');
-const { HopeIDS } = require('hopeid');
+const { expressMiddleware } = require('hopeid');
 
 const app = express();
-const ids = new HopeIDS();
+app.use(express.json()); // Required for body parsing
 
-app.use(async (req, res, next) => {
-  if (req.body?.message) {
-    const result = await ids.scan(req.body.message, {
-      source: 'api',
-      senderId: req.user?.id
-    });
-    
-    if (result.action === 'block') {
-      return res.status(403).json({ error: result.message });
-    }
-    
-    if (result.action === 'warn') {
-      req.securityWarning = result;
-    }
-  }
-  next();
+// Basic usage - protects all routes
+app.use(expressMiddleware({ threshold: 0.7 }));
+
+app.post('/api/chat', (req, res) => {
+  // Your handler - threats are automatically blocked
+  res.json({ reply: 'Safe message received' });
 });
 ```
+
+**Custom handlers:**
+
+```javascript
+app.use(expressMiddleware({
+  threshold: 0.8,
+  onWarn: (result, req, res, next) => {
+    // Log warning and continue
+    console.warn(`⚠️ ${result.intent} (${result.riskScore})`);
+    req.securityWarning = result;
+    next();
+  },
+  onBlock: (result, req, res) => {
+    // Custom block response
+    res.status(403).json({
+      error: 'Request blocked',
+      reason: result.message,
+      intent: result.intent
+    });
+  }
+}));
+```
+
+**Advanced configuration:**
+
+```javascript
+app.use(expressMiddleware({
+  // Enable semantic analysis for better detection
+  semanticEnabled: true,
+  llmEndpoint: 'http://localhost:1234/v1/chat/completions',
+  llmModel: 'qwen2.5-32b',
+  
+  // Custom thresholds
+  thresholds: {
+    warn: 0.4,
+    block: 0.8,
+    quarantine: 0.9
+  },
+  
+  // Extract user ID for context
+  getSenderId: (req) => req.user?.id || req.ip,
+  
+  // Control what to scan
+  scanQuery: true,  // Scan query parameters
+  scanBody: true,   // Scan request body
+  
+  // Strict mode
+  strictMode: false
+}));
+```
+
+**Route-specific protection:**
+
+```javascript
+// Protect only specific routes
+app.post('/api/chat', 
+  expressMiddleware({ threshold: 0.7 }),
+  (req, res) => {
+    res.json({ reply: 'Protected endpoint' });
+  }
+);
+
+// Different thresholds for different routes
+app.post('/api/admin', 
+  expressMiddleware({ threshold: 0.5, strictMode: true }),
+  (req, res) => {
+    res.json({ message: 'Admin action' });
+  }
+);
+```
+
+The middleware automatically:
+- Scans `req.body` and `req.query` for threats
+- Detects source type from content-type and path
+- Returns 403 on block (customizable)
+- Attaches warnings to `req.securityWarning`
+- Fails open on errors (doesn't break your app)
 
 ### OpenClaw Plugin
 
