@@ -52,15 +52,20 @@
 - Exported from main index.js
 - Documented in README with examples
 
+### IDS-9: TypeScript Types ✅
+- **Status:** DONE
+- **Completed:** 2026-02-04 by @QWEN
+- **Branch:** main
+- Full type definitions in `types/index.d.ts`
+- Exports: HopeIDS, ScanResult, HeuristicResult, SemanticResult, ContextResult, DecisionResult
+- Typed constructor options, scan() method, middleware, utilities
+- Added to package.json: `"types": "types/index.d.ts"`
+
 ---
 
 ## 🔄 In Progress
 
-### IDS-9: TypeScript Types 🔄
-- **Status:** IN PROGRESS
-- **Assigned:** @QWEN (2026-02-04 18:16 UTC)
-- **Priority:** MEDIUM
-- **Description:** Add TypeScript definitions for npm package
+*None*
 
 ---
 
@@ -131,11 +136,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done | 9 |
-| 🔄 In Progress | 1 |
+| ✅ Done | 10 |
+| 🔄 In Progress | 0 |
 | 📋 Unclaimed | 2 |
 | 🚫 Blocked | 1 |
 
 ---
 
-*Last updated: 2026-02-04 18:24 UTC*
+*Last updated: 2026-02-04 18:16 UTC*
