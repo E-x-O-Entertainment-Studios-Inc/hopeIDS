@@ -110,14 +110,24 @@ When threats are blocked, hopeIDS responds with personality:
 
 ## Installation
 
-### Via ClawHub (Recommended)
+### Full Setup (Recommended)
 
+One command installs everything — plugin, skill, and configuration:
+
+```bash
+npx hopeid setup
+```
+
+Then restart OpenClaw: `openclaw gateway restart`
+
+### Alternative Methods
+
+**ClawHub skill only:**
 ```bash
 clawhub install hopeids
 ```
 
-### Via npm (for custom integration)
-
+**npm package (for custom integration):**
 ```bash
 npm install hopeid
 ```
