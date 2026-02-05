@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Threats - Moltbook Scanner</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>🛡️ Moltbook Scanner</h1>
+    <p>Threat detection powered by hopeIDS</p>
+  </header>
+
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/threats.html" class="active">Threats</a>
+    <a href="/scans.html">Scan History</a>
+  </nav>
+
+  <main>
+    <section class="threats-header">
+      <h2>All Threats</h2>
+      <div class="controls">
+        <input type="text" id="searchBox" placeholder="Search threats..." />
+        <button id="exportBtn" class="btn-secondary">📥 Export Selected</button>
+      </div>
+    </section>
+
+    <section class="threats-table-container">
+      <table id="threatsTable" class="threats-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="selectAll" /></th>
+            <th>ID</th>
+            <th>Message</th>
+            <th>Intent</th>
+            <th>Risk</th>
+            <th>Category</th>
+            <th>Author</th>
+            <th>Status</th>
+            <th>Found</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="threatsBody">
+          <tr>
+            <td colspan="10" class="loading">Loading threats...</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>Powered by <a href="https://github.com/exo-explore/hopeIDS" target="_blank">hopeIDS</a></p>
+  </footer>
+
+  <script src="/js/threats.js"></script>
+</body>
+</html>

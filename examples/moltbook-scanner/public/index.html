@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moltbook Scanner - Control Panel</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>🛡️ Moltbook Scanner</h1>
+    <p>Threat detection powered by hopeIDS</p>
+  </header>
+
+  <nav>
+    <a href="/" class="active">Dashboard</a>
+    <a href="/threats.html">Threats</a>
+    <a href="/scans.html">Scan History</a>
+    <button id="triggerScan" class="btn-primary">🔍 Scan Now</button>
+  </nav>
+
+  <main>
+    <section class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <h3>Total Threats</h3>
+        <p class="stat-value" id="totalThreats">-</p>
+      </div>
+      <div class="stat-card">
+        <h3>Active Threats</h3>
+        <p class="stat-value" id="activeThreats">-</p>
+      </div>
+      <div class="stat-card">
+        <h3>Total Scans</h3>
+        <p class="stat-value" id="totalScans">-</p>
+      </div>
+      <div class="stat-card">
+        <h3>Last Scan</h3>
+        <p class="stat-value" id="lastScan">-</p>
+      </div>
+    </section>
+
+    <section class="threats-section">
+      <h2>Recent Threats</h2>
+      <div id="recentThreats" class="threats-list">
+        <p class="loading">Loading...</p>
+      </div>
+    </section>
+
+    <section class="categories-section">
+      <h2>Threats by Category</h2>
+      <div id="categoryChart" class="category-chart">
+        <p class="loading">Loading...</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Powered by <a href="https://github.com/exo-explore/hopeIDS" target="_blank">hopeIDS</a></p>
+  </footer>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

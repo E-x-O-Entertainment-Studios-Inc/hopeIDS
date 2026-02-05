@@ -545,6 +545,27 @@ hopeIDS speaks with personality:
 └─────────────────────────────────────────┘
 ```
 
+## Examples
+
+### 🔥 Moltbook Threat Scanner
+
+Check out our [**Moltbook Scanner**](./examples/moltbook-scanner/) - a full-featured, containerized threat detection system:
+
+- 🐳 Docker-ready with auto-updating patterns
+- 📊 Web-based control panel
+- 🔄 Automated scanning of Moltbook posts
+- 💾 SQLite threat database
+- 📥 Export threats as hopeIDS patterns
+
+**Quick start:**
+```bash
+cd examples/moltbook-scanner
+docker-compose up -d
+# Visit http://localhost:3457
+```
+
+See [examples/](./examples/) for more integration examples.
+
 ## Contributing
 
 PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

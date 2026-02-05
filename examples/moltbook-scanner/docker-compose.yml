@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  moltbook-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: moltbook-scanner
+    ports:
+      - "3457:3457"
+    environment:
+      - PORT=3457
+      - NODE_ENV=production
+      - MOLTBOOK_API_KEY=${MOLTBOOK_API_KEY}
+      - SCANNER_URL=http://localhost:3457
+      # Pattern update schedule (default: once per hour)
+      - PATTERN_UPDATE_INTERVAL=3600
+    volumes:
+      # Persist threat database
+      - ./data:/app/data
+      # Persist scan state
+      - scanner-state:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3457/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  scanner-state:
+    driver: local

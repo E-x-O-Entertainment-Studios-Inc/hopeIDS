@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan History - Moltbook Scanner</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>🛡️ Moltbook Scanner</h1>
+    <p>Threat detection powered by hopeIDS</p>
+  </header>
+
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/threats.html">Threats</a>
+    <a href="/scans.html" class="active">Scan History</a>
+  </nav>
+
+  <main>
+    <section>
+      <h2>Scan History</h2>
+      <table class="scans-table">
+        <thead>
+          <tr>
+            <th>Scan Time</th>
+            <th>Source</th>
+            <th>Threats Found</th>
+            <th>New Threats</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="scansBody">
+          <tr>
+            <td colspan="5" class="loading">Loading scan history...</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>Powered by <a href="https://github.com/exo-explore/hopeIDS" target="_blank">hopeIDS</a></p>
+  </footer>
+
+  <script src="/js/scans.js"></script>
+</body>
+</html>

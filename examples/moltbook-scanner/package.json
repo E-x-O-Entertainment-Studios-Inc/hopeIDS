@@ -1,0 +1,30 @@
+{
+  "name": "hopeid-moltbook-scanner",
+  "version": "1.0.0",
+  "description": "Moltbook threat scanner using hopeIDS with auto-updating patterns",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "scan": "node scanner.js",
+    "update-patterns": "./update-patterns.sh",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": [
+    "security",
+    "ids",
+    "moltbook",
+    "threat-detection"
+  ],
+  "author": "E.x.O. Entertainment Studios",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "hopeid": "^0.1.0"
+  }
+}
