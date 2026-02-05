@@ -108,6 +108,28 @@
 
 ## 📋 Unclaimed
 
+### IDS-17: ExoHaven Live Demo Scanner
+- **Priority:** HIGH
+- **Complexity:** MODERATE
+- **Description:** Make the hopeIDS demo on exohaven.online/products/hopeids actually work
+- **Problem:** Current demo does basic client-side string matching with hardcoded responses. Always says the same thing regardless of input.
+- **Solution:** Add `/scan` endpoint to Cloudflare Workers API that calls hopeIDS
+- **Files:**
+  - `exohaven_website/workers/src/routes/scan.ts` — new route
+  - `exohaven_website/workers/src/index.ts` — register route
+  - `exohaven_website/src/pages/Products/HopeIDS.jsx` — call real API
+- **Tasks:**
+  - [ ] Create `workers/src/routes/scan.ts` with POST handler
+  - [ ] Import hopeIDS and call `ids.scan(message)`
+  - [ ] Return real scan result (action, intent, risk, message)
+  - [ ] Update `HopeIDS.jsx` to call `${API_URL}/scan` instead of local pattern matching
+  - [ ] Add rate limiting (prevent abuse)
+  - [ ] Test with various attack types
+- **Acceptance Criteria:**
+  - Demo returns DIFFERENT responses based on actual scan results
+  - HoPE personality messages vary by threat type
+  - Risk scores are real, not hardcoded 85%
+
 ### IDS-6: npm Publish 🚫 BLOCKED
 - **Status:** BLOCKED (needs npm login credentials)
 
@@ -189,9 +211,9 @@
 |--------|-------|
 | ✅ Done | 12 |
 | 🔄 In Progress | 0 |
-| 📋 Unclaimed | 3 |
+| 📋 Unclaimed | 4 |
 | 🚫 Blocked | 1 |
 
 ---
 
-*Last updated: 2026-02-04 18:54 UTC*
+*Last updated: 2026-02-05 01:28 UTC*
