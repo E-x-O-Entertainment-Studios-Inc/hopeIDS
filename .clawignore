@@ -1,0 +1,7 @@
+node_modules/
+.git/
+docker/
+test/
+*.pyc
+__pycache__/
+dist/
