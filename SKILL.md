@@ -1,7 +1,7 @@
 ---
 name: hopeids
-version: 1.1.1
-description: "Inference-based intrusion detection for AI agents. Pattern matching + LLM analysis for jailbreaks, prompt injection, credential theft, social engineering. 108 detection patterns, OpenClaw plugin, auto-scan, quarantine. Commands: hopeid scan, hopeid test, hopeid setup, hopeid stats."
+version: 1.2.0
+description: "Inference-based intrusion detection for AI agents. Pattern matching + LLM analysis for jailbreaks, prompt injection, credential theft, social engineering. 108 detection patterns, OpenClaw plugin, auto-scan, quarantine. Commands: hopeid scan, hopeid test, hopeid setup, hopeid stats, hopeid doctor."
 ---
 
 # hopeIDS v1.1.1
