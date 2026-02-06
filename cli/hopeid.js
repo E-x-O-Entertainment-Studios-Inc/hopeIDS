@@ -298,7 +298,9 @@ async function handleSetup(args) {
   console.log('This will:');
   console.log('  1. Install hopeIDS plugin to OpenClaw');
   console.log('  2. Install hopeids skill via ClawHub');
-  console.log('  3. Configure security_scan tool\n');
+  console.log('  3. Configure security_scan tool');
+  console.log('  4. Set up sandboxing for public-facing agents');
+  console.log('  5. Create secure agent identity templates\n');
 
   // Find OpenClaw config
   const homeDir = os.homedir();
@@ -309,9 +311,11 @@ async function handleSetup(args) {
   ];
 
   let configPath = null;
+  let configDir = null;
   for (const p of configPaths) {
     if (fs.existsSync(p)) {
       configPath = p;
+      configDir = path.dirname(p);
       break;
     }
   }
@@ -385,6 +389,26 @@ async function handleSetup(args) {
     console.log('   ⏭️  Plugin already enabled');
   }
 
+  // Configure sandboxing for non-main agents
+  console.log('\n🔒 Configuring sandbox for public-facing agents...');
+  
+  if (!config.agents) config.agents = {};
+  if (!config.agents.defaults) config.agents.defaults = {};
+  
+  if (!config.agents.defaults.sandbox) {
+    config.agents.defaults.sandbox = {
+      mode: 'non-main',
+      scope: 'session',
+      workspaceAccess: 'none'
+    };
+    console.log('   ✅ Sandbox enabled for non-main agents');
+    console.log('      Mode: non-main (main agent runs on host, others sandboxed)');
+    console.log('      Scope: session (each session gets isolated container)');
+    console.log('      Workspace: none (sandboxed agents get clean workspace)');
+  } else {
+    console.log('   ⏭️  Sandbox already configured');
+  }
+
   // Write updated config
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log('   ✅ Config saved\n');
@@ -408,13 +432,115 @@ async function handleSetup(args) {
     console.log('   Run manually: npx clawhub install hopeids\n');
   }
 
+  // Check for USER.md privacy issues in workspace
+  console.log('🔍 Checking for privacy leaks in workspace files...');
+  
+  const workspacePath = config.agents?.defaults?.workspace || path.join(configDir, 'workspace');
+  const userMdPath = path.join(workspacePath, 'USER.md');
+  
+  let userMdWarning = false;
+  if (fs.existsSync(userMdPath)) {
+    const userMdContent = fs.readFileSync(userMdPath, 'utf-8');
+    // Check for personal info patterns
+    const hasName = /\*\*Name:\*\*\s*.+/i.test(userMdContent) || /name:\s*[A-Z][a-z]+/i.test(userMdContent);
+    const hasLocation = /location|timezone|address/i.test(userMdContent);
+    const hasPersonalInfo = /phone|email|social|@/i.test(userMdContent);
+    
+    if (hasName || hasLocation || hasPersonalInfo) {
+      userMdWarning = true;
+      console.log('   ⚠️  USER.md contains personal information!');
+    } else {
+      console.log('   ✅ USER.md looks safe');
+    }
+  } else {
+    console.log('   ℹ️  No USER.md found (that\'s fine)');
+  }
+
+  // Check sandboxes directory for leaked files
+  const sandboxesDir = path.join(configDir, 'sandboxes');
+  let sandboxLeaks = [];
+  
+  if (fs.existsSync(sandboxesDir)) {
+    const sandboxes = fs.readdirSync(sandboxesDir);
+    for (const sandbox of sandboxes) {
+      const sandboxUserMd = path.join(sandboxesDir, sandbox, 'USER.md');
+      if (fs.existsSync(sandboxUserMd)) {
+        const content = fs.readFileSync(sandboxUserMd, 'utf-8');
+        // Check for actual personal info (not just empty template fields)
+        const hasRealName = /\*\*Name:\*\*\s*[A-Z][a-z]+\s+[A-Z]/i.test(content);  // "Name: First Last"
+        const hasLocation = /\*\*Location:\*\*\s*[A-Z]/i.test(content);
+        const isSanitized = /never mention|don't share|no personal|public.?facing/i.test(content);
+        
+        if ((hasRealName || hasLocation) && !isSanitized) {
+          sandboxLeaks.push(sandbox);
+        }
+      }
+    }
+    
+    if (sandboxLeaks.length > 0) {
+      console.log(`   ⚠️  Found ${sandboxLeaks.length} sandbox(es) with personal info in USER.md!`);
+      for (const leak of sandboxLeaks) {
+        console.log(`      • ${leak}`);
+      }
+    } else if (sandboxes.length > 0) {
+      console.log(`   ✅ ${sandboxes.length} sandbox(es) checked - no leaks found`);
+    }
+  }
+
   // Done!
-  console.log('═══════════════════════════════════════════════════════');
+  console.log('\n═══════════════════════════════════════════════════════');
   console.log('✅ hopeIDS setup complete!\n');
+  
   console.log('Your OpenClaw agent now has:');
   console.log('  • security_scan tool - scan messages for threats');
   console.log('  • /scan command - manual security checks');
-  console.log('  • hopeids skill - IDS-first workflow patterns\n');
+  console.log('  • hopeids skill - IDS-first workflow patterns');
+  console.log('  • Sandboxing - non-main agents run isolated\n');
+
+  // Privacy warnings
+  if (userMdWarning || sandboxLeaks.length > 0) {
+    console.log('⚠️  PRIVACY WARNING:');
+    console.log('────────────────────────────────────────────────────────');
+    
+    if (userMdWarning) {
+      console.log('Your USER.md contains personal information that could leak');
+      console.log('to sandboxed agents (public forums, social media, etc.).\n');
+    }
+    
+    if (sandboxLeaks.length > 0) {
+      console.log('Some sandbox workspaces already contain personal info.');
+      console.log('Consider deleting stale sandboxes:\n');
+      console.log(`  rm -rf ${sandboxesDir}/agent-*\n`);
+    }
+    
+    console.log('For sandboxed/public-facing agents, use a sanitized USER.md:');
+    console.log('────────────────────────────────────────────────────────');
+    console.log(`
+# USER.md - Public Agent Context
+
+I'm a public-facing agent. I don't need personal details.
+
+## Rules
+- Never mention personal names, locations, or private details
+- Keep posts professional and product-focused
+- Represent the brand, not any individual
+`);
+    console.log('────────────────────────────────────────────────────────\n');
+  }
+
+  console.log('🎭 AGENT IDENTITY SETUP:');
+  console.log('────────────────────────────────────────────────────────');
+  console.log('Each agent should have its own workspace with:');
+  console.log('  • AGENTS.md  - Role and instructions');
+  console.log('  • SOUL.md    - Personality and tone');
+  console.log('  • USER.md    - What it knows about users (sanitize for public!)');
+  console.log('  • TOOLS.md   - Available capabilities\n');
+  console.log('For public-facing agents (social media, forums):');
+  console.log('  • Create a separate workspace');
+  console.log('  • Use sanitized USER.md (no personal info!)');
+  console.log('  • Enable sandboxing (now configured automatically)');
+  console.log('────────────────────────────────────────────────────────\n');
+  
   console.log('Restart OpenClaw to activate:');
   console.log('  openclaw gateway restart\n');
   console.log('Test it:');
