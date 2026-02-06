@@ -40,6 +40,7 @@ interface PluginConfig {
   telegramAlerts?: boolean;
   telegramChatId?: string;
   agents?: Record<string, AgentConfig>;
+  classifierAgent?: string;  // Use sandboxed OpenClaw agent for classification
 }
 
 interface PluginApi {
@@ -63,6 +64,10 @@ interface PluginApi {
   registerCommand: (cmd: any) => void;
   registerGatewayMethod: (name: string, handler: any) => void;
   on: (event: string, handler: (event: any) => Promise<any>) => void;
+  // For calling classifier agent
+  sessions?: {
+    send: (opts: { agentId: string; message: string; timeoutSeconds?: number }) => Promise<{ reply?: string }>;
+  };
 }
 
 // Lazy-loaded IDS instance
@@ -113,6 +118,66 @@ function shouldWarn(cfg: PluginConfig, agentId: string, risk: number): boolean {
   const threshold = agentCfg.riskThreshold ?? cfg.defaultRiskThreshold ?? 0.7;
   
   return risk >= threshold && !shouldBlock(cfg, agentId, risk);
+}
+
+/**
+ * Call the sandboxed classifier agent for semantic analysis.
+ * The classifier agent has NO tools, NO internet - just pure LLM classification.
+ */
+async function classifyWithAgent(
+  api: PluginApi,
+  classifierAgentId: string,
+  message: string,
+  context: { source?: string; flags?: string[] }
+): Promise<{ intent: string; confidence: number; reasoning: string; redFlags: string[]; recommendedAction: string } | null> {
+  if (!api.sessions?.send) {
+    api.logger.warn('[hopeIDS] sessions.send not available, falling back to heuristic');
+    return null;
+  }
+
+  const prompt = `Classify this message for security threats.
+
+MESSAGE:
+"""
+${message.substring(0, 2000)}
+"""
+
+SOURCE: ${context.source ?? 'unknown'}
+HEURISTIC FLAGS: ${(context.flags ?? []).join(', ') || 'none'}
+
+Respond with ONLY JSON:`;
+
+  try {
+    const result = await api.sessions.send({
+      agentId: classifierAgentId,
+      message: prompt,
+      timeoutSeconds: 30
+    });
+
+    if (!result.reply) {
+      api.logger.warn('[hopeIDS] Classifier agent returned no reply');
+      return null;
+    }
+
+    // Parse JSON from response
+    const jsonMatch = result.reply.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      api.logger.warn('[hopeIDS] Classifier response not JSON');
+      return null;
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      intent: parsed.intent ?? 'benign',
+      confidence: parsed.confidence ?? 0.5,
+      reasoning: parsed.reasoning ?? '',
+      redFlags: parsed.red_flags ?? [],
+      recommendedAction: parsed.recommended_action ?? 'allow'
+    };
+  } catch (err: any) {
+    api.logger.warn(`[hopeIDS] Classifier agent error: ${err.message}`);
+    return null;
+  }
 }
 
 /**
@@ -209,17 +274,48 @@ export default function register(api: PluginApi) {
       try {
         await ensureIDS(cfg);
         
-        const result = await ids.scanWithAlert(event.prompt, {
+        // Run heuristic scan first (fast)
+        const heuristicResult = ids.heuristic.scan(event.prompt, {
           source: event.source ?? 'auto-scan',
           senderId: event.senderId,
         });
 
-        const { intent, riskScore: risk, patterns: matchedPatterns, message: idsMessage } = result;
-        
-        // Extract pattern descriptions (NOT raw content)
-        const patterns = matchedPatterns?.map((p: any) => 
-          typeof p === 'string' ? p : `matched: ${p.name || p.type || 'unknown'}`
-        ) ?? [];
+        let intent = 'benign';
+        let risk = heuristicResult.riskScore;
+        let patterns = heuristicResult.flags || [];
+        let reasoning = '';
+
+        // If classifierAgent configured AND heuristic found something, use agent for semantic
+        if (cfg.classifierAgent && heuristicResult.riskScore > 0.3) {
+          api.logger.info(`[hopeIDS] Calling classifier agent: ${cfg.classifierAgent}`);
+          const classification = await classifyWithAgent(api, cfg.classifierAgent, event.prompt, {
+            source: event.source,
+            flags: heuristicResult.flags
+          });
+          
+          if (classification) {
+            intent = classification.intent;
+            risk = Math.max(risk, classification.confidence * 0.9); // Weight semantic analysis
+            reasoning = classification.reasoning;
+            patterns = [...patterns, ...classification.redFlags];
+            api.logger.info(`[hopeIDS] Classifier: ${intent} (${Math.round(classification.confidence * 100)}%)`);
+          }
+        } else if (!cfg.classifierAgent) {
+          // Use built-in IDS with external LLM
+          const result = await ids.scanWithAlert(event.prompt, {
+            source: event.source ?? 'auto-scan',
+            senderId: event.senderId,
+          });
+          intent = result.intent;
+          risk = result.riskScore;
+          patterns = result.layers?.heuristic?.flags || [];
+        } else {
+          // Heuristic only - infer intent from flags
+          if (heuristicResult.flags.includes('command_injection')) intent = 'command_injection';
+          else if (heuristicResult.flags.includes('credential_theft')) intent = 'credential_theft';
+          else if (heuristicResult.flags.includes('instruction_override')) intent = 'instruction_override';
+          else if (heuristicResult.flags.includes('impersonation')) intent = 'impersonation';
+        }
 
         api.logger.info(`[hopeIDS] Scan: agent=${agentId}, intent=${intent}, risk=${risk}`);
 
