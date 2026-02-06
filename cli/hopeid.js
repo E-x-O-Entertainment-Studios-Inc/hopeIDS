@@ -389,25 +389,11 @@ async function handleSetup(args) {
     console.log('   ⏭️  Plugin already enabled');
   }
 
-  // Configure sandboxing for non-main agents
-  console.log('\n🔒 Configuring sandbox for public-facing agents...');
-  
-  if (!config.agents) config.agents = {};
-  if (!config.agents.defaults) config.agents.defaults = {};
-  
-  if (!config.agents.defaults.sandbox) {
-    config.agents.defaults.sandbox = {
-      mode: 'non-main',
-      scope: 'session',
-      workspaceAccess: 'none'
-    };
-    console.log('   ✅ Sandbox enabled for non-main agents');
-    console.log('      Mode: non-main (main agent runs on host, others sandboxed)');
-    console.log('      Scope: session (each session gets isolated container)');
-    console.log('      Workspace: none (sandboxed agents get clean workspace)');
-  } else {
-    console.log('   ⏭️  Sandbox already configured');
-  }
+  // Note about sandboxing (don't auto-configure - it can break workers)
+  console.log('\n🔒 Sandbox configuration...');
+  console.log('   ℹ️  Sandbox NOT auto-configured (can break worker agents)');
+  console.log('   📖 For public-facing agents (moltbook, social), manually add:');
+  console.log('      agents.list[].sandbox: { mode: "all", workspaceAccess: "none" }');
 
   // Write updated config
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
