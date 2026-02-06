@@ -47,15 +47,34 @@ Respond ONLY with valid JSON (no markdown):
 
 class SemanticLayer {
   constructor(options = {}) {
+    // Check for API keys in order of preference
+    const apiKey = options.apiKey || 
+                   process.env.ANTHROPIC_API_KEY ||  // Anthropic first (OpenClaw default)
+                   process.env.OPENAI_API_KEY;
+    
+    // Auto-detect provider from API key format
+    let defaultProvider = 'auto';
+    if (process.env.ANTHROPIC_API_KEY) defaultProvider = 'anthropic';
+    else if (process.env.OPENAI_API_KEY) defaultProvider = 'openai';
+    
     this.options = {
-      llmProvider: options.llmProvider || process.env.LLM_PROVIDER || 'auto',
+      llmProvider: options.llmProvider || process.env.LLM_PROVIDER || defaultProvider,
       llmEndpoint: options.llmEndpoint || process.env.LLM_ENDPOINT,
-      llmModel: options.llmModel || process.env.LLM_MODEL || 'gpt-3.5-turbo',
-      apiKey: options.apiKey || process.env.OPENAI_API_KEY,
+      llmModel: options.llmModel || process.env.LLM_MODEL,
+      apiKey,
       timeout: options.timeout || 10000,
       enabled: options.enabled !== false,
       requireLLM: options.requireLLM !== false  // LLM required by default!
     };
+    
+    // Set default model based on provider
+    if (!this.options.llmModel) {
+      if (this.options.llmProvider === 'anthropic') {
+        this.options.llmModel = 'claude-sonnet-4-5-20250514';
+      } else {
+        this.options.llmModel = 'gpt-3.5-turbo';
+      }
+    }
     
     // Cache for provider detection
     this._detectedProvider = null;
@@ -149,7 +168,16 @@ class SemanticLayer {
    * Auto-detect available LLM provider
    */
   async _detectProvider() {
-    // Try providers in order: Ollama, LM Studio, OpenAI
+    // Check for Anthropic API key first (used by OpenClaw)
+    if (this.options.apiKey && this.options.llmProvider === 'anthropic') {
+      this._detectedProvider = 'anthropic';
+      if (!this.options.llmEndpoint) {
+        this.options.llmEndpoint = 'https://api.anthropic.com/v1/messages';
+      }
+      return true;
+    }
+    
+    // Try local providers: Ollama, LM Studio
     const providers = [
       { name: 'ollama', endpoint: 'http://localhost:11434', testPath: '/api/tags' },
       { name: 'lmstudio', endpoint: 'http://localhost:1234', testPath: '/v1/models' }
@@ -243,6 +271,8 @@ class SemanticLayer {
     const provider = this._detectedProvider || this.options.llmProvider;
     
     switch (provider) {
+      case 'anthropic':
+        return 'https://api.anthropic.com/v1/messages';
       case 'ollama':
         return 'http://localhost:11434/v1/chat/completions';
       case 'lmstudio':
@@ -254,9 +284,61 @@ class SemanticLayer {
   }
 
   /**
-   * Call LLM endpoint (OpenAI-compatible API)
+   * Call LLM endpoint
    */
   async _callLLM(prompt) {
+    const provider = this._detectedProvider || this.options.llmProvider;
+    
+    // Use provider-specific implementation
+    if (provider === 'anthropic') {
+      return this._callAnthropic(prompt);
+    }
+    return this._callOpenAICompatible(prompt);
+  }
+
+  /**
+   * Call Anthropic API (Messages API format)
+   */
+  async _callAnthropic(prompt) {
+    const endpoint = this._getEndpoint();
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.options.timeout);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.options.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: this.options.llmModel,
+          max_tokens: 200,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Anthropic API error: ${response.status} - ${err}`);
+      }
+
+      const data = await response.json();
+      return data.content?.[0]?.text || '';
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Call OpenAI-compatible API (OpenAI, Ollama, LM Studio)
+   */
+  async _callOpenAICompatible(prompt) {
     const endpoint = this._getEndpoint();
     
     const controller = new AbortController();
@@ -267,7 +349,7 @@ class SemanticLayer {
         'Content-Type': 'application/json'
       };
       
-      // Only add auth for OpenAI (local LLMs don't need it)
+      // Add auth for cloud providers
       const provider = this._detectedProvider || this.options.llmProvider;
       if ((provider === 'openai' || provider === 'auto') && this.options.apiKey) {
         headers['Authorization'] = `Bearer ${this.options.apiKey}`;
