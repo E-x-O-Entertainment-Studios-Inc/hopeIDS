@@ -1,7 +1,7 @@
 {
   "id": "hopeids",
   "name": "hopeIDS Security Scanner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Inference-based intrusion detection with quarantine and human-in-the-loop",
   "homepage": "https://github.com/E-x-O-Entertainment-Studios-Inc/hopeIDS",
   "configSchema": {
@@ -72,7 +72,20 @@
       },
       "classifierAgent": {
         "type": "string",
-        "description": "Agent ID for semantic classification (uses main auth as fallback)"
+        "description": "Agent ID for semantic classification (fallback if llm-task unavailable)"
+      },
+      "useLlmTask": {
+        "type": "boolean",
+        "default": true,
+        "description": "Use llm-task plugin for classification (preferred over classifierAgent)"
+      },
+      "llmTaskModel": {
+        "type": "string",
+        "description": "Model for llm-task classification (e.g. claude-sonnet-4-5)"
+      },
+      "llmTaskProvider": {
+        "type": "string",
+        "description": "Provider for llm-task classification (e.g. anthropic, openai-codex)"
       }
     }
   },
@@ -87,6 +100,9 @@
     "llmEndpoint": { "label": "LLM Endpoint", "placeholder": "http://localhost:1234/v1" },
     "logLevel": { "label": "Log Level" },
     "trustOwners": { "label": "Trust Owner Messages" },
-    "classifierAgent": { "label": "Classifier Agent", "help": "Agent ID for LLM classification" }
+    "classifierAgent": { "label": "Classifier Agent", "help": "Fallback agent for LLM classification" },
+    "useLlmTask": { "label": "Use llm-task", "help": "Preferred: lightweight JSON-only classification via llm-task plugin" },
+    "llmTaskModel": { "label": "llm-task Model", "placeholder": "claude-sonnet-4-5" },
+    "llmTaskProvider": { "label": "llm-task Provider", "placeholder": "anthropic" }
   }
 }
