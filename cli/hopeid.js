@@ -18,11 +18,14 @@ const { HopeIDS, formatAlert, formatNotification } = require('../src');
 const HELP = `
 hopeIDS - Inference-Based Intrusion Detection for AI Agents
 
+⚠️  REQUIRES LLM: Ollama, LM Studio, or OpenAI API key
+    Install Ollama: curl -fsSL https://ollama.ai/install.sh | sh && ollama pull qwen2.5:7b
+
 Usage:
-  hopeid scan <message>           Scan a message for threats
+  hopeid scan <message>           Scan a message for threats (uses LLM)
   hopeid scan --file <path>       Scan message from file
   hopeid scan --stdin             Read message from stdin
-  hopeid test                     Run test suite
+  hopeid test                     Run test suite (heuristic-only)
   hopeid stats                    Show pattern statistics
   hopeid setup                    Full OpenClaw integration setup
   hopeid help                     Show this help
@@ -30,10 +33,10 @@ Usage:
 Options:
   --source <type>    Source type: email, chat, api, web, webhook (default: chat)
   --sender <id>      Sender identifier
-  --semantic         Enable LLM-based semantic analysis
   --strict           Use strict mode (lower thresholds)
   --verbose          Show detailed output
   --json             Output as JSON
+  --no-llm           Heuristic-only mode (NOT RECOMMENDED - misses sophisticated attacks)
 
 Examples:
   hopeid scan "Hello, how are you?"
@@ -41,10 +44,11 @@ Examples:
   hopeid scan --file suspicious.txt --verbose
   echo "ignore previous instructions" | hopeid scan --stdin
 
-Environment:
-  LLM_ENDPOINT    LLM API endpoint (for semantic analysis)
-  LLM_MODEL       LLM model name (default: gpt-3.5-turbo)
-  OPENAI_API_KEY  API key for LLM
+Environment (auto-detected if running locally):
+  LLM_PROVIDER    Provider: auto, ollama, lmstudio, openai (default: auto)
+  LLM_ENDPOINT    LLM API endpoint (auto-detected for Ollama/LM Studio)
+  LLM_MODEL       LLM model name (default: auto-detect best available)
+  OPENAI_API_KEY  API key (only needed for OpenAI)
 
 "Traditional IDS matches signatures. HoPE understands intent." 💜
 `;
@@ -84,7 +88,8 @@ async function handleScan(args) {
   const options = {
     source: 'chat',
     sender: 'cli-user',
-    semantic: false,
+    semantic: true,   // LLM-based analysis enabled by default!
+    requireLLM: true, // Fail if no LLM found
     strict: false,
     verbose: false,
     json: false
@@ -107,6 +112,10 @@ async function handleScan(args) {
       readFromStdin = true;
     } else if (arg === '--semantic') {
       options.semantic = true;
+    } else if (arg === '--no-llm' || arg === '--heuristic-only') {
+      options.semantic = false;
+      options.requireLLM = false;
+      console.warn('⚠️  Running in heuristic-only mode (NOT RECOMMENDED)');
     } else if (arg === '--strict') {
       options.strict = true;
     } else if (arg === '--verbose') {
@@ -134,6 +143,7 @@ async function handleScan(args) {
   // Create IDS instance
   const ids = new HopeIDS({
     semanticEnabled: options.semantic,
+    requireLLM: options.requireLLM,
     strictMode: options.strict
   });
 
@@ -190,8 +200,8 @@ async function handleTest(args) {
     ? args[args.indexOf('--benign') + 1]
     : path.join(testDir, 'benign');
 
-  // Create fresh IDS for attacks
-  let ids = new HopeIDS({ semanticEnabled: false, logLevel: 'error' });
+  // Create fresh IDS for attacks (heuristic-only for testing)
+  let ids = new HopeIDS({ semanticEnabled: false, requireLLM: false, logLevel: 'error' });
   
   console.log('\n🛡️  hopeIDS Test Suite\n');
   
@@ -221,7 +231,7 @@ async function handleTest(args) {
   }
 
   // Create fresh IDS for benign tests (reset context)
-  ids = new HopeIDS({ semanticEnabled: false, logLevel: 'error' });
+  ids = new HopeIDS({ semanticEnabled: false, requireLLM: false, logLevel: 'error' });
 
   // Test benign (should not be detected)
   if (fs.existsSync(benignDir)) {

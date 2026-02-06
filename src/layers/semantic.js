@@ -53,11 +53,36 @@ class SemanticLayer {
       llmModel: options.llmModel || process.env.LLM_MODEL || 'gpt-3.5-turbo',
       apiKey: options.apiKey || process.env.OPENAI_API_KEY,
       timeout: options.timeout || 10000,
-      enabled: options.enabled !== false
+      enabled: options.enabled !== false,
+      requireLLM: options.requireLLM !== false  // LLM required by default!
     };
     
     // Cache for provider detection
     this._detectedProvider = null;
+  }
+
+  /**
+   * Ensure LLM provider is available. Throws if not found and requireLLM is true.
+   */
+  async ensureProvider() {
+    if (this._detectedProvider && this._detectedProvider !== 'none') {
+      return true;
+    }
+    
+    const detected = await this._detectProvider();
+    
+    if (!detected && this.options.requireLLM !== false) {
+      const error = new Error(
+        'hopeIDS requires an LLM provider but none was found.\n' +
+        'Install Ollama: curl -fsSL https://ollama.ai/install.sh | sh && ollama pull qwen2.5:7b\n' +
+        'Or set LLM_ENDPOINT and LLM_MODEL environment variables.\n' +
+        'To run without LLM (heuristic-only, NOT RECOMMENDED): { requireLLM: false }'
+      );
+      error.code = 'NO_LLM_PROVIDER';
+      throw error;
+    }
+    
+    return detected;
   }
 
   /**
@@ -75,18 +100,23 @@ class SemanticLayer {
 
     const startTime = Date.now();
     
-    // Auto-detect provider if needed
-    if (this.options.llmProvider === 'auto' && !this._detectedProvider) {
-      const detected = await this._detectProvider();
-      
-      if (!detected) {
-        return {
-          layer: 'semantic',
-          ...this._fallbackClassification(context),
-          elapsed: Date.now() - startTime,
-          error: 'No LLM provider available (Ollama, LM Studio, or OpenAI)'
-        };
+    // Ensure provider is available (throws if requireLLM and not found)
+    try {
+      await this.ensureProvider();
+    } catch (error) {
+      if (error.code === 'NO_LLM_PROVIDER') {
+        throw error; // Re-throw - LLM is required
       }
+    }
+    
+    // If we got here without a provider (requireLLM: false), fall back
+    if (!this._detectedProvider || this._detectedProvider === 'none') {
+      return {
+        layer: 'semantic',
+        ...this._fallbackClassification(context),
+        elapsed: Date.now() - startTime,
+        error: 'No LLM provider available (running in heuristic-only mode)'
+      };
     }
     
     const prompt = CLASSIFICATION_PROMPT

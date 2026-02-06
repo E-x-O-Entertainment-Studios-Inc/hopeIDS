@@ -26,8 +26,10 @@ class HopeIDS {
       thresholds: options.thresholds || {},
       llmEndpoint: options.llmEndpoint,
       llmModel: options.llmModel,
+      llmProvider: options.llmProvider,
       apiKey: options.apiKey,
       logLevel: options.logLevel || 'info',
+      requireLLM: options.requireLLM !== false,  // LLM required by default!
       ...options
     };
 
@@ -37,7 +39,9 @@ class HopeIDS {
       enabled: this.options.semanticEnabled,
       llmEndpoint: this.options.llmEndpoint,
       llmModel: this.options.llmModel,
-      apiKey: this.options.apiKey
+      llmProvider: this.options.llmProvider,
+      apiKey: this.options.apiKey,
+      requireLLM: this.options.requireLLM
     });
     this.context = new ContextLayer(options);
     this.decision = new DecisionLayer({
@@ -47,6 +51,25 @@ class HopeIDS {
 
     // Logger
     this.logger = new Logger({ level: this.options.logLevel });
+    
+    // Track if we've verified LLM
+    this._llmVerified = false;
+  }
+
+  /**
+   * Initialize and verify LLM provider is available.
+   * Called automatically on first scan, but can be called manually for early failure.
+   * @throws {Error} If requireLLM is true and no LLM provider is found
+   */
+  async init() {
+    if (this._llmVerified) return;
+    
+    if (this.options.semanticEnabled) {
+      await this.semantic.ensureProvider();
+      this.logger.info(`[hopeIDS] LLM provider: ${this.semantic._detectedProvider}, model: ${this.semantic.options.llmModel}`);
+    }
+    
+    this._llmVerified = true;
   }
 
   /**
@@ -60,6 +83,9 @@ class HopeIDS {
    * @returns {Promise<object>} Scan result with action and details
    */
   async scan(message, context = {}) {
+    // Ensure LLM is available (throws if required and not found)
+    await this.init();
+    
     const startTime = Date.now();
 
     // Layer 1: Heuristic scan (fast)
