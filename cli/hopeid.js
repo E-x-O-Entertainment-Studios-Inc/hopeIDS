@@ -297,10 +297,21 @@ function readStdin() {
 async function handleDoctor(args) {
   const os = require('os');
   
-  console.log('\n🏥 hopeIDS Doctor\n');
+  // Parse flags
+  const isDryRun = args.includes('--dry-run');
+  const isFix = args.includes('--fix');
+  
+  const mode = isFix ? 'fix' : (isDryRun ? 'dry-run' : 'check');
+  
+  console.log(`\n🏥 hopeIDS Doctor${mode === 'fix' ? ' --fix' : mode === 'dry-run' ? ' --dry-run' : ''}\n`);
   
   let exitCode = 0;
   const checks = [];
+  const fixes = [];
+  
+  const homeDir = os.homedir();
+  const hopeidDir = path.join(homeDir, '.hopeid');
+  const configPath = path.join(hopeidDir, 'config.json');
   
   // Check 1: Node.js version
   const nodeVersion = process.version;
@@ -311,7 +322,9 @@ async function handleDoctor(args) {
     name: 'Node.js',
     status: nodeOk ? '✅' : '❌',
     details: nodeVersion,
-    ok: nodeOk
+    ok: nodeOk,
+    canFix: false,
+    fixMessage: 'Please upgrade manually to Node.js 18 or higher'
   });
   
   if (!nodeOk) exitCode = 1;
@@ -336,13 +349,64 @@ async function handleDoctor(args) {
     name: 'Patterns',
     status: patternStatus,
     details: patternDetails,
-    ok: patternOk
+    ok: patternOk,
+    canFix: false,
+    fixMessage: 'Reinstall hopeIDS package'
   });
   
-  // Check 3: LLM endpoint
+  // Check 3: ~/.hopeid directory
+  const dirExists = fs.existsSync(hopeidDir);
+  
+  checks.push({
+    name: 'Config dir',
+    status: dirExists ? '✅' : '⚠️',
+    details: dirExists ? hopeidDir : 'Missing',
+    ok: true,
+    canFix: !dirExists,
+    fixMessage: `Create directory: mkdir -p ${hopeidDir}`,
+    fix: async () => {
+      if (!dirExists) {
+        fs.mkdirSync(hopeidDir, { recursive: true });
+        return `Created directory: ${hopeidDir}`;
+      }
+      return null;
+    }
+  });
+  
+  // Check 4: Config file
+  const configExists = fs.existsSync(configPath);
+  const defaultConfig = {
+    semantic: false,
+    llmEndpoint: null,
+    autoScan: true
+  };
+  
+  checks.push({
+    name: 'Config',
+    status: configExists ? '✅' : '⚠️',
+    details: configExists ? configPath : 'Missing',
+    ok: true,
+    canFix: !configExists,
+    fixMessage: `Create default config at ${configPath}`,
+    fix: async () => {
+      if (!configExists) {
+        // Ensure directory exists first
+        if (!fs.existsSync(hopeidDir)) {
+          fs.mkdirSync(hopeidDir, { recursive: true });
+        }
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+        return `Created default config at ${configPath}`;
+      }
+      return null;
+    }
+  });
+  
+  // Check 5: LLM endpoint
   let llmStatus = '✅';
   let llmDetails = '';
   let llmOk = true;
+  let llmCanFix = false;
+  let llmFixMessage = '';
   
   try {
     const ids = new HopeIDS({ 
@@ -356,12 +420,13 @@ async function handleDoctor(args) {
     
     const provider = ids.semantic._detectedProvider;
     const model = ids.semantic.options.llmModel;
-    const endpoint = ids.semantic.options.llmEndpoint;
     
     if (provider === 'none' || !provider) {
       llmStatus = '⚠️';
       llmDetails = 'No endpoint configured (pattern-only mode)';
-      llmOk = true; // Not an error, just a warning
+      llmOk = true;
+      llmCanFix = false;
+      llmFixMessage = 'Configure manually in config.json or install Ollama';
     } else {
       // Try a quick connection test
       try {
@@ -376,7 +441,6 @@ async function handleDoctor(args) {
           });
           if (!response.ok) throw new Error('LM Studio not responding');
         } else if (provider === 'openai' || provider === 'anthropic') {
-          // Just check if API key exists
           if (!ids.semantic.options.apiKey) {
             throw new Error('API key not set');
           }
@@ -385,14 +449,18 @@ async function handleDoctor(args) {
         llmDetails = `${provider} (${model})`;
       } catch (testError) {
         llmStatus = '⚠️';
-        llmDetails = `${provider} configured but unreachable: ${testError.message}`;
-        llmOk = true; // Warning, not error
+        llmDetails = `${provider} configured but unreachable`;
+        llmOk = true;
+        llmCanFix = false;
+        llmFixMessage = `Configure manually in ${configPath}`;
       }
     }
   } catch (error) {
     llmStatus = '❌';
     llmDetails = `Error: ${error.message}`;
     llmOk = false;
+    llmCanFix = false;
+    llmFixMessage = 'Check LLM installation';
     exitCode = 1;
   }
   
@@ -400,141 +468,197 @@ async function handleDoctor(args) {
     name: 'LLM',
     status: llmStatus,
     details: llmDetails,
-    ok: llmOk
+    ok: llmOk,
+    canFix: llmCanFix,
+    fixMessage: llmFixMessage
   });
   
-  // Check 4: OpenClaw plugin
+  // Check 6: OpenClaw plugin
   let pluginStatus = '✅';
-  let pluginDetails = 'OpenClaw plugin found';
+  let pluginDetails = '';
   let pluginOk = true;
+  let pluginCanFix = false;
   
-  const pluginPath = path.join(__dirname, '..', 'extensions', 'openclaw-plugin');
-  if (!fs.existsSync(pluginPath)) {
+  const pluginSourcePath = path.join(__dirname, '..', 'extensions', 'openclaw-plugin');
+  const openclawSkillsDir = path.join(homeDir, '.openclaw', 'workspace', 'skills', 'hopeids');
+  const pluginInstalled = fs.existsSync(openclawSkillsDir);
+  
+  if (!fs.existsSync(pluginSourcePath)) {
     pluginStatus = '⚠️';
-    pluginDetails = 'Plugin directory not found (optional)';
-    pluginOk = true; // Not critical
+    pluginDetails = 'Plugin source not found (skip)';
+    pluginOk = true;
+    pluginCanFix = false;
+  } else if (pluginInstalled) {
+    pluginStatus = '✅';
+    pluginDetails = 'Installed in OpenClaw';
+    pluginOk = true;
+    pluginCanFix = false;
   } else {
-    // Check if plugin manifest exists
-    const manifestPath = path.join(pluginPath, 'openclaw.plugin.json');
-    if (!fs.existsSync(manifestPath)) {
-      pluginStatus = '⚠️';
-      pluginDetails = 'Plugin manifest missing';
-      pluginOk = true; // Not critical
-    }
+    pluginStatus = '⚠️';
+    pluginDetails = 'Not installed in OpenClaw';
+    pluginOk = true;
+    pluginCanFix = true;
   }
   
   checks.push({
     name: 'Plugin',
     status: pluginStatus,
     details: pluginDetails,
-    ok: pluginOk
+    ok: pluginOk,
+    canFix: pluginCanFix,
+    fixMessage: `Copy ${pluginSourcePath} to ${openclawSkillsDir}`,
+    fix: async () => {
+      if (pluginCanFix && fs.existsSync(pluginSourcePath)) {
+        const { execSync } = require('child_process');
+        // Ensure parent directory exists
+        const skillsDir = path.dirname(openclawSkillsDir);
+        if (!fs.existsSync(skillsDir)) {
+          fs.mkdirSync(skillsDir, { recursive: true });
+        }
+        // Copy plugin directory
+        execSync(`cp -r "${pluginSourcePath}" "${openclawSkillsDir}"`);
+        return `Installed OpenClaw plugin to ${openclawSkillsDir}`;
+      }
+      return null;
+    }
   });
   
-  // Check 5: Test suite
+  // Check 7: Test suite
   let testStatus = '✅';
   let testDetails = '';
   let testOk = true;
+  let testCanFix = false;
   
-  try {
-    const testDir = path.join(__dirname, '../test');
-    
-    if (!fs.existsSync(testDir)) {
-      testStatus = '⚠️';
-      testDetails = 'Test directory not found';
-      testOk = true; // Not critical for end users
-    } else {
-      // Count test files
-      const attacksDir = path.join(testDir, 'attacks');
-      const benignDir = path.join(testDir, 'benign');
-      
-      let attackCount = 0;
-      let benignCount = 0;
-      
-      if (fs.existsSync(attacksDir)) {
-        attackCount = fs.readdirSync(attacksDir).filter(f => f.endsWith('.txt')).length;
-      }
-      
-      if (fs.existsSync(benignDir)) {
-        benignCount = fs.readdirSync(benignDir).filter(f => f.endsWith('.txt')).length;
-      }
-      
-      const totalTests = attackCount + benignCount;
-      
-      if (totalTests === 0) {
-        testStatus = '⚠️';
-        testDetails = 'No test files found';
-        testOk = true;
-      } else {
-        testDetails = `${totalTests} tests available (run 'hopeid test' to execute)`;
-      }
-    }
-  } catch (error) {
+  const testDir = path.join(__dirname, '../test');
+  
+  if (!fs.existsSync(testDir)) {
     testStatus = '⚠️';
-    testDetails = `Error checking tests: ${error.message}`;
-    testOk = true; // Not critical
+    testDetails = 'Test directory not found';
+    testOk = true;
+    testCanFix = false;
+  } else {
+    const attacksDir = path.join(testDir, 'attacks');
+    const benignDir = path.join(testDir, 'benign');
+    
+    let attackCount = 0;
+    let benignCount = 0;
+    
+    if (fs.existsSync(attacksDir)) {
+      attackCount = fs.readdirSync(attacksDir).filter(f => f.endsWith('.txt')).length;
+    }
+    
+    if (fs.existsSync(benignDir)) {
+      benignCount = fs.readdirSync(benignDir).filter(f => f.endsWith('.txt')).length;
+    }
+    
+    const totalTests = attackCount + benignCount;
+    
+    if (totalTests === 0) {
+      testStatus = '⚠️';
+      testDetails = 'No test files found';
+      testOk = true;
+      testCanFix = false;
+    } else {
+      testDetails = `${totalTests} tests available`;
+      testCanFix = true;
+    }
   }
   
   checks.push({
     name: 'Tests',
     status: testStatus,
     details: testDetails,
-    ok: testOk
+    ok: testOk,
+    canFix: testCanFix,
+    fixMessage: 'Run test suite with: hopeid test',
+    fix: async () => {
+      if (testCanFix) {
+        // Run test suite
+        const { spawnSync } = require('child_process');
+        console.log('\n  Running test suite...');
+        const result = spawnSync(process.argv[0], [__filename, 'test'], {
+          stdio: 'inherit'
+        });
+        return result.status === 0 
+          ? '✅ Test suite passed' 
+          : '❌ Test suite had failures';
+      }
+      return null;
+    }
   });
   
-  // Check 6: Config file
-  let configStatus = '✅';
-  let configDetails = '';
-  let configOk = true;
-  
-  const homeDir = os.homedir();
-  const configPaths = [
-    path.join(homeDir, '.hopeid', 'config.json'),
-    path.join(homeDir, '.config', 'hopeid', 'config.json')
-  ];
-  
-  let configFound = false;
-  for (const configPath of configPaths) {
-    if (fs.existsSync(configPath)) {
-      configDetails = configPath;
-      configFound = true;
-      break;
+  // Print results based on mode
+  if (mode === 'check' || mode === 'dry-run') {
+    // Default or dry-run: show what would be done
+    for (const check of checks) {
+      const padding = ' '.repeat(Math.max(0, 12 - check.name.length));
+      console.log(`  ${check.name}:${padding}${check.status} ${check.details}`);
+      
+      if (!check.ok && !check.canFix) {
+        console.log(`    ${' '.repeat(12)}→ ${check.fixMessage}`);
+      } else if (check.status === '⚠️' && check.canFix) {
+        if (mode === 'dry-run') {
+          console.log(`    ${' '.repeat(12)}→ Would fix: ${check.fixMessage}`);
+        } else {
+          console.log(`    ${' '.repeat(12)}→ run with --fix to: ${check.fixMessage}`);
+        }
+      }
+    }
+    
+    console.log();
+    
+    // Summary
+    const failed = checks.filter(c => !c.ok).length;
+    const fixable = checks.filter(c => c.canFix && c.status === '⚠️').length;
+    
+    if (failed > 0) {
+      console.log(`❌ ${failed} check(s) failed - manual intervention required`);
+    }
+    
+    if (fixable > 0) {
+      console.log(`⚠️  ${fixable} issue(s) can be fixed automatically`);
+      console.log(`   Run: hopeid doctor --fix\n`);
+    } else if (failed === 0) {
+      console.log('✅ All checks passed - hopeIDS is healthy!\n');
+    }
+    
+  } else if (mode === 'fix') {
+    // Fix mode: actually apply fixes
+    console.log('  Running checks and applying fixes...\n');
+    
+    for (const check of checks) {
+      const padding = ' '.repeat(Math.max(0, 12 - check.name.length));
+      
+      if (check.canFix && check.status === '⚠️' && check.fix) {
+        // Apply fix
+        try {
+          const result = await check.fix();
+          if (result) {
+            console.log(`  ${check.name}:${padding}🔧 ${result}`);
+            fixes.push(result);
+          } else {
+            console.log(`  ${check.name}:${padding}✅ ${check.details}`);
+          }
+        } catch (error) {
+          console.log(`  ${check.name}:${padding}❌ Fix failed: ${error.message}`);
+          exitCode = 1;
+        }
+      } else if (!check.ok) {
+        console.log(`  ${check.name}:${padding}${check.status} ${check.details}`);
+        console.log(`    ${' '.repeat(12)}→ ${check.fixMessage}`);
+      } else {
+        console.log(`  ${check.name}:${padding}${check.status} ${check.details}`);
+      }
+    }
+    
+    console.log();
+    
+    if (fixes.length > 0) {
+      console.log(`✅ Applied ${fixes.length} fix(es)\n`);
+    } else {
+      console.log('✅ No fixes needed - hopeIDS is healthy!\n');
     }
   }
-  
-  if (!configFound) {
-    configStatus = 'ℹ️';
-    configDetails = 'No config file (using defaults)';
-    configOk = true; // Config is optional
-  }
-  
-  checks.push({
-    name: 'Config',
-    status: configStatus,
-    details: configDetails,
-    ok: configOk
-  });
-  
-  // Print results
-  for (const check of checks) {
-    const padding = ' '.repeat(Math.max(0, 12 - check.name.length));
-    console.log(`  ${check.name}:${padding}${check.status} ${check.details}`);
-  }
-  
-  console.log();
-  
-  // Summary
-  const failed = checks.filter(c => !c.ok).length;
-  const warnings = checks.filter(c => c.ok && c.status !== '✅').length;
-  
-  if (failed > 0) {
-    console.log(`❌ ${failed} check(s) failed`);
-  } else if (warnings > 0) {
-    console.log(`⚠️  ${warnings} warning(s) - hopeIDS is functional but some features may be limited`);
-  } else {
-    console.log('✅ All checks passed - hopeIDS is healthy!');
-  }
-  
-  console.log();
   
   process.exit(exitCode);
 }
