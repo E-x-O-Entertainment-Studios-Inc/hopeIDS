@@ -1,8 +1,8 @@
 {
   "id": "hopeids",
   "name": "hopeIDS Security Scanner",
-  "version": "0.1.0",
-  "description": "Inference-based intrusion detection for AI agent messages",
+  "version": "0.2.0",
+  "description": "Inference-based intrusion detection for AI agent messages with auto-scan",
   "homepage": "https://github.com/E-x-O-Entertainment-Studios-Inc/hopeIDS",
   "configSchema": {
     "type": "object",
@@ -11,6 +11,11 @@
       "enabled": {
         "type": "boolean",
         "default": true
+      },
+      "autoScan": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically scan messages before agent processing"
       },
       "strictMode": {
         "type": "boolean",
@@ -40,6 +45,7 @@
   },
   "uiHints": {
     "enabled": { "label": "Enable Security Scanning" },
+    "autoScan": { "label": "Auto-Scan", "help": "Scan every message before processing" },
     "strictMode": { "label": "Strict Mode (block threats)" },
     "semanticEnabled": { "label": "Semantic Analysis" },
     "llmEndpoint": { "label": "LLM Endpoint", "placeholder": "http://localhost:1234/v1" },

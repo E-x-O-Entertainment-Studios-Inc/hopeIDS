@@ -3,10 +3,16 @@
  * 
  * Inference-based intrusion detection for AI agent messages.
  * "Traditional IDS matches signatures. HoPE understands intent."
+ * 
+ * Features:
+ * - `security_scan` tool for manual scans
+ * - `/scan` command for quick checks
+ * - Auto-scan: automatically scan messages before agent processing
  */
 
 interface PluginConfig {
   enabled?: boolean;
+  autoScan?: boolean;
   strictMode?: boolean;
   semanticEnabled?: boolean;
   llmEndpoint?: string;
@@ -35,6 +41,7 @@ interface PluginApi {
   registerCommand: (cmd: any) => void;
   registerService: (svc: any) => void;
   registerGatewayMethod: (name: string, handler: any) => void;
+  on: (event: string, handler: (event: any) => Promise<any>) => void;
 }
 
 // Lazy-loaded IDS instance
@@ -54,6 +61,19 @@ async function loadHopeIDS() {
   return HopeIDSModule;
 }
 
+async function ensureIDS(cfg: PluginConfig) {
+  if (ids) return ids;
+  
+  const mod = await loadHopeIDS();
+  ids = mod.createIDS({
+    strictMode: cfg.strictMode ?? false,
+    semanticEnabled: cfg.semanticEnabled ?? false,
+    llmEndpoint: cfg.llmEndpoint,
+    logLevel: cfg.logLevel ?? 'info',
+  });
+  return ids;
+}
+
 export default function register(api: PluginApi) {
   const cfg = api.config.plugins?.entries?.hopeids?.config ?? {};
   
@@ -61,6 +81,9 @@ export default function register(api: PluginApi) {
     api.logger.info('[hopeIDS] Plugin disabled');
     return;
   }
+
+  const autoScan = cfg.autoScan ?? false;
+  const ownerNumbers = api.config.ownerNumbers ?? [];
 
   // Initialize asynchronously
   loadHopeIDS().then(({ createIDS }) => {
@@ -71,12 +94,71 @@ export default function register(api: PluginApi) {
       logLevel: cfg.logLevel ?? 'info',
     });
 
-    api.logger.info(`[hopeIDS] Initialized with ${ids.getStats().patternCount} patterns`);
+    api.logger.info(`[hopeIDS] Initialized with ${ids.getStats().patternCount} patterns (autoScan=${autoScan})`);
   }).catch((err: Error) => {
     api.logger.error(`[hopeIDS] Failed to load: ${err.message}`);
   });
 
-  // Register the security_scan tool
+  // ============================================================================
+  // Auto-Scan: scan messages before agent processes them
+  // ============================================================================
+
+  if (autoScan) {
+    api.on('before_agent_start', async (event: { prompt?: string; senderId?: string; source?: string }) => {
+      // Skip if no prompt or too short
+      if (!event.prompt || event.prompt.length < 5) {
+        return;
+      }
+
+      // Skip heartbeats and system prompts
+      if (event.prompt.startsWith('HEARTBEAT') || event.prompt.includes('NO_REPLY')) {
+        return;
+      }
+
+      // Skip trusted owners
+      const isTrustedOwner = cfg.trustOwners !== false && event.senderId && ownerNumbers.includes(event.senderId);
+      if (isTrustedOwner) {
+        api.logger.debug?.('[hopeIDS] Skipping auto-scan for trusted owner');
+        return;
+      }
+
+      try {
+        await ensureIDS(cfg);
+        
+        const result = await ids.scanWithAlert(event.prompt, {
+          source: event.source ?? 'auto-scan',
+          senderId: event.senderId,
+        });
+
+        api.logger.info(`[hopeIDS] Auto-scan: action=${result.action}, risk=${result.riskScore}`);
+
+        if (result.action === 'block') {
+          // Block the message entirely
+          api.logger.warn(`[hopeIDS] 🛑 BLOCKED: ${result.intent}`);
+          return {
+            blocked: true,
+            blockReason: result.notification || result.message,
+            prependContext: `<security-alert severity="critical">\n🛑 This message was flagged as a potential security threat.\nIntent: ${result.intent}\nRisk: ${(result.riskScore * 100).toFixed(0)}%\n${result.message}\n</security-alert>`,
+          };
+        } else if (result.action === 'warn') {
+          // Warn but allow processing
+          api.logger.warn(`[hopeIDS] ⚠️ WARNING: ${result.intent}`);
+          return {
+            prependContext: `<security-alert severity="warning">\n⚠️ Potential security concern detected.\nIntent: ${result.intent}\nRisk: ${(result.riskScore * 100).toFixed(0)}%\nProceed with caution.\n</security-alert>`,
+          };
+        }
+        
+        // Clean - no injection needed
+      } catch (err: any) {
+        api.logger.warn(`[hopeIDS] Auto-scan failed: ${err.message}`);
+      }
+    });
+  }
+
+  // ============================================================================
+  // Tool: security_scan
+  // ============================================================================
+
   api.registerTool({
     name: 'security_scan',
     description: 'Scan a message for potential security threats (prompt injection, jailbreaks, command injection, etc.)',
@@ -100,23 +182,13 @@ export default function register(api: PluginApi) {
       required: ['message'],
     },
     execute: async (_id: string, { message, source, senderId }: { message: string; source?: string; senderId?: string }) => {
-      if (!ids) {
-        // Try loading again
-        const mod = await loadHopeIDS();
-        ids = mod.createIDS({
-          strictMode: cfg.strictMode ?? false,
-          semanticEnabled: cfg.semanticEnabled ?? false,
-          llmEndpoint: cfg.llmEndpoint,
-          logLevel: cfg.logLevel ?? 'info',
-        });
-      }
+      await ensureIDS(cfg);
 
       if (!ids) {
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'hopeIDS not initialized' }) }] };
       }
 
       // Check if sender is trusted owner
-      const ownerNumbers = api.config.ownerNumbers ?? [];
       const isTrustedOwner = cfg.trustOwners !== false && senderId && ownerNumbers.includes(senderId);
 
       if (isTrustedOwner) {
@@ -151,17 +223,17 @@ export default function register(api: PluginApi) {
     },
   });
 
-  // Register /scan command for manual checks
+  // ============================================================================
+  // Command: /scan
+  // ============================================================================
+
   api.registerCommand({
     name: 'scan',
     description: 'Scan a message for security threats',
     acceptsArgs: true,
     requireAuth: true,
     handler: async (ctx: { args?: string }) => {
-      if (!ids) {
-        const mod = await loadHopeIDS();
-        ids = mod.createIDS(cfg);
-      }
+      await ensureIDS(cfg);
 
       if (!ids) {
         return { text: '❌ hopeIDS not initialized' };
@@ -187,12 +259,12 @@ export default function register(api: PluginApi) {
     },
   });
 
-  // Register RPC methods for external integrations
+  // ============================================================================
+  // RPC Methods
+  // ============================================================================
+
   api.registerGatewayMethod('hopeids.scan', async ({ params, respond }: any) => {
-    if (!ids) {
-      const mod = await loadHopeIDS();
-      ids = mod.createIDS(cfg);
-    }
+    await ensureIDS(cfg);
 
     if (!ids) {
       respond(false, { error: 'hopeIDS not initialized' });
@@ -205,10 +277,7 @@ export default function register(api: PluginApi) {
   });
 
   api.registerGatewayMethod('hopeids.stats', async ({ respond }: any) => {
-    if (!ids) {
-      const mod = await loadHopeIDS();
-      ids = mod.createIDS(cfg);
-    }
+    await ensureIDS(cfg);
 
     if (!ids) {
       respond(false, { error: 'hopeIDS not initialized' });
