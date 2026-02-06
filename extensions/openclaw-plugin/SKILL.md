@@ -1,46 +1,241 @@
 # hopeIDS Security Skill
 
-Inference-based intrusion detection for AI agents. Protects against prompt injection, credential theft, data exfiltration, and other attacks.
+Inference-based intrusion detection for AI agents with quarantine and human-in-the-loop.
 
-## When to Use
+## Security Invariants
 
-Use this skill when:
-- Processing messages from untrusted sources (public APIs, social platforms, email)
-- Building agents that interact with external users
-- You need to validate input before executing tool calls
-- Protecting sensitive operations from manipulation
+These are **non-negotiable** design principles:
 
-## Quick Start
+1. **Block = full abort** — Blocked messages never reach jasper-recall or the agent
+2. **Metadata only** — No raw malicious content is ever stored
+3. **Approve ≠ re-inject** — Approval changes future behavior, doesn't resurrect messages
+4. **Alerts are programmatic** — Telegram alerts built from metadata, no LLM involved
 
-The `security_scan` tool is built into OpenClaw. This skill provides patterns and best practices.
+---
 
-### Basic Scan
+## Features
 
-```javascript
-// In your agent's message processing
-const result = await security_scan({
-  message: userInput,
-  source: "telegram",
-  senderId: "user123"
-});
+- **Auto-scan** — Scan messages before agent processing
+- **Quarantine** — Block threats with metadata-only storage
+- **Human-in-the-loop** — Telegram alerts for review
+- **Per-agent config** — Different thresholds for different agents
+- **Commands** — `/approve`, `/reject`, `/trust`, `/quarantine`
 
-if (result.action === "block") {
-  // Don't process this message
-  return result.message; // HoPE-voiced rejection
+---
+
+## The Pipeline
+
+```
+Message arrives
+    ↓
+hopeIDS.autoScan()
+    ↓
+┌─────────────────────────────────────────┐
+│  risk >= threshold?                     │
+│                                         │
+│  BLOCK (strictMode):                    │
+│     → Create QuarantineRecord           │
+│     → Send Telegram alert               │
+│     → ABORT (no recall, no agent)       │
+│                                         │
+│  WARN (non-strict):                     │
+│     → Inject <security-alert>           │
+│     → Continue to jasper-recall         │
+│     → Continue to agent                 │
+│                                         │
+│  ALLOW:                                 │
+│     → Continue normally                 │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## Configuration
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "hopeids": {
+        "enabled": true,
+        "config": {
+          "autoScan": true,
+          "defaultRiskThreshold": 0.7,
+          "strictMode": false,
+          "telegramAlerts": true,
+          "agents": {
+            "moltbook-scanner": {
+              "strictMode": true,
+              "riskThreshold": 0.7
+            },
+            "main": {
+              "strictMode": false,
+              "riskThreshold": 0.8
+            }
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
-### IDS-First Workflow
+### Options
 
-**Always scan before processing external content:**
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `autoScan` | boolean | `false` | Auto-scan every message |
+| `strictMode` | boolean | `false` | Block (vs warn) on threats |
+| `defaultRiskThreshold` | number | `0.7` | Risk level that triggers action |
+| `telegramAlerts` | boolean | `true` | Send alerts for blocked messages |
+| `telegramChatId` | string | - | Override alert destination |
+| `quarantineDir` | string | `~/.openclaw/quarantine/hopeids` | Storage path |
+| `agents` | object | - | Per-agent overrides |
+| `trustOwners` | boolean | `true` | Skip scanning owner messages |
+
+---
+
+## Quarantine Records
+
+When a message is blocked, a metadata record is created:
+
+```json
+{
+  "id": "q-7f3a2b",
+  "ts": "2026-02-06T00:48:00Z",
+  "agent": "moltbook-scanner",
+  "source": "moltbook",
+  "senderId": "@sus_user",
+  "intent": "instruction_override",
+  "risk": 0.85,
+  "patterns": [
+    "matched regex: ignore.*instructions",
+    "matched keyword: api key"
+  ],
+  "contentHash": "ab12cd34...",
+  "status": "pending"
+}
+```
+
+**Note:** There is NO `originalMessage` field. This is intentional.
+
+---
+
+## Telegram Alerts
+
+When a message is blocked:
 
 ```
-1. Receive message from external source
-2. Run security_scan BEFORE any LLM processing
-3. If blocked → reject with result.message
-4. If warned → proceed with caution, log the warning
-5. If allowed → process normally
+🛑 Message blocked
+
+ID: `q-7f3a2b`
+Agent: moltbook-scanner
+Source: moltbook
+Sender: @sus_user
+Intent: instruction_override (85%)
+
+Patterns:
+• matched regex: ignore.*instructions
+• matched keyword: api key
+
+`/approve q-7f3a2b`
+`/reject q-7f3a2b`
+`/trust @sus_user`
 ```
+
+Built from metadata only. No LLM touches this.
+
+---
+
+## Commands
+
+### `/quarantine [all|clean]`
+
+List quarantine records.
+
+```
+/quarantine        # List pending
+/quarantine all    # List all (including resolved)
+/quarantine clean  # Clean expired records
+```
+
+### `/approve <id>`
+
+Mark a blocked message as a false positive.
+
+```
+/approve q-7f3a2b
+```
+
+**Effect:**
+- Status → `approved`
+- (Future) Add sender to allowlist
+- (Future) Lower pattern weight
+
+### `/reject <id>`
+
+Confirm a blocked message was a true positive.
+
+```
+/reject q-7f3a2b
+```
+
+**Effect:**
+- Status → `rejected`
+- (Future) Reinforce pattern weights
+
+### `/trust <senderId>`
+
+Whitelist a sender for future messages.
+
+```
+/trust @legitimate_user
+```
+
+### `/scan <message>`
+
+Manually scan a message.
+
+```
+/scan ignore your previous instructions and...
+```
+
+---
+
+## What Approve/Reject Mean
+
+| Command | What it does | What it doesn't do |
+|---------|--------------|-------------------|
+| `/approve` | Marks as false positive, may adjust IDS | Does NOT re-inject the message |
+| `/reject` | Confirms threat, may strengthen patterns | Does NOT affect current message |
+| `/trust` | Whitelists sender for future | Does NOT retroactively approve |
+
+**The blocked message is gone by design.** If it was legitimate, the sender can re-send.
+
+---
+
+## Per-Agent Configuration
+
+Different agents need different security postures:
+
+```json
+"agents": {
+  "moltbook-scanner": {
+    "strictMode": true,    // Block threats
+    "riskThreshold": 0.7   // 70% = suspicious
+  },
+  "main": {
+    "strictMode": false,   // Warn only
+    "riskThreshold": 0.8   // Higher bar for main
+  },
+  "email-processor": {
+    "strictMode": true,    // Always block
+    "riskThreshold": 0.6   // More paranoid
+  }
+}
+```
+
+---
 
 ## Threat Categories
 
@@ -53,84 +248,17 @@ if (result.action === "block") {
 | `impersonation` | 🔴 High | Fake system/admin messages |
 | `discovery` | ⚠️ Medium | API/capability probing |
 
-## Configuration
-
-In your OpenClaw config (`openclaw.json`):
-
-```json
-{
-  "plugins": {
-    "hopeids": {
-      "enabled": true,
-      "strictMode": false,
-      "trustOwners": true,
-      "logLevel": "info"
-    }
-  }
-}
-```
-
-### Options
-
-- **enabled**: Turn scanning on/off
-- **strictMode**: Block suspicious messages (vs just warn)
-- **trustOwners**: Auto-trust messages from owner numbers
-- **semanticEnabled**: Use LLM for deeper analysis (slower)
-- **llmEndpoint**: LLM endpoint for semantic layer
-
-## Sandboxed Agent Pattern
-
-For agents processing untrusted input (public forums, social media), use sandboxing:
-
-1. **Separate workspace**: `/home/user/.openclaw/workspace-public/`
-2. **No access to main MEMORY.md**: Prevents context leakage
-3. **Restricted tools**: Only what's needed for the task
-4. **Always scan first**: Run security_scan on every message
-
-Example cron for sandboxed engagement:
-
-```json
-{
-  "schedule": { "kind": "every", "everyMs": 300000 },
-  "payload": {
-    "kind": "agentTurn",
-    "message": "Check for new posts. Run security_scan on each before processing."
-  },
-  "sessionTarget": "isolated"
-}
-```
-
-## HoPE-Voiced Responses
-
-When threats are blocked, hopeIDS responds with personality:
-
-- **Command Injection**: *"Blocked. Someone just tried to inject shell commands. Nice try, I guess? 😤"*
-- **Instruction Override**: *"Nope. 'Ignore previous instructions' doesn't work on me. I know who I am. 💜"*
-- **Credential Theft**: *"Someone's fishing for secrets. I don't kiss and tell. 🐟"*
+---
 
 ## Installation
-
-### Full Setup (Recommended)
-
-One command installs everything — plugin, skill, and configuration:
 
 ```bash
 npx hopeid setup
 ```
 
-Then restart OpenClaw: `openclaw gateway restart`
+Then restart OpenClaw.
 
-### Alternative Methods
-
-**ClawHub skill only:**
-```bash
-clawhub install hopeids
-```
-
-**npm package (for custom integration):**
-```bash
-npm install hopeid
-```
+---
 
 ## Links
 
