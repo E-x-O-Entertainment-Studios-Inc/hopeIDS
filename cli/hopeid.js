@@ -27,6 +27,7 @@ Usage:
   hopeid scan --stdin             Read message from stdin
   hopeid test                     Run test suite (heuristic-only)
   hopeid stats                    Show pattern statistics
+  hopeid doctor                   Run health checks
   hopeid setup                    Full OpenClaw integration setup
   hopeid help                     Show this help
 
@@ -72,6 +73,9 @@ async function main() {
       break;
     case 'stats':
       handleStats();
+      break;
+    case 'doctor':
+      await handleDoctor(args.slice(1));
       break;
     case 'setup':
       await handleSetup(args.slice(1));
@@ -288,6 +292,251 @@ function readStdin() {
     process.stdin.on('data', chunk => data += chunk);
     process.stdin.on('end', () => resolve(data.trim()));
   });
+}
+
+async function handleDoctor(args) {
+  const os = require('os');
+  
+  console.log('\n🏥 hopeIDS Doctor\n');
+  
+  let exitCode = 0;
+  const checks = [];
+  
+  // Check 1: Node.js version
+  const nodeVersion = process.version;
+  const nodeMajor = parseInt(nodeVersion.slice(1).split('.')[0]);
+  const nodeOk = nodeMajor >= 18;
+  
+  checks.push({
+    name: 'Node.js',
+    status: nodeOk ? '✅' : '❌',
+    details: nodeVersion,
+    ok: nodeOk
+  });
+  
+  if (!nodeOk) exitCode = 1;
+  
+  // Check 2: Pattern files
+  let patternStatus = '✅';
+  let patternDetails = '';
+  let patternOk = true;
+  
+  try {
+    const ids = new HopeIDS({ logLevel: 'error' });
+    const stats = ids.getStats();
+    patternDetails = `${stats.patternCount} loaded (${stats.categories.length} categories)`;
+  } catch (error) {
+    patternStatus = '❌';
+    patternDetails = `Failed to load: ${error.message}`;
+    patternOk = false;
+    exitCode = 1;
+  }
+  
+  checks.push({
+    name: 'Patterns',
+    status: patternStatus,
+    details: patternDetails,
+    ok: patternOk
+  });
+  
+  // Check 3: LLM endpoint
+  let llmStatus = '✅';
+  let llmDetails = '';
+  let llmOk = true;
+  
+  try {
+    const ids = new HopeIDS({ 
+      semanticEnabled: true, 
+      requireLLM: false,
+      logLevel: 'error'
+    });
+    
+    // Try to detect provider
+    await ids.semantic.ensureProvider();
+    
+    const provider = ids.semantic._detectedProvider;
+    const model = ids.semantic.options.llmModel;
+    const endpoint = ids.semantic.options.llmEndpoint;
+    
+    if (provider === 'none' || !provider) {
+      llmStatus = '⚠️';
+      llmDetails = 'No endpoint configured (pattern-only mode)';
+      llmOk = true; // Not an error, just a warning
+    } else {
+      // Try a quick connection test
+      try {
+        if (provider === 'ollama') {
+          const response = await fetch('http://localhost:11434/api/tags', {
+            signal: AbortSignal.timeout(2000)
+          });
+          if (!response.ok) throw new Error('Ollama not responding');
+        } else if (provider === 'lmstudio') {
+          const response = await fetch('http://localhost:1234/v1/models', {
+            signal: AbortSignal.timeout(2000)
+          });
+          if (!response.ok) throw new Error('LM Studio not responding');
+        } else if (provider === 'openai' || provider === 'anthropic') {
+          // Just check if API key exists
+          if (!ids.semantic.options.apiKey) {
+            throw new Error('API key not set');
+          }
+        }
+        
+        llmDetails = `${provider} (${model})`;
+      } catch (testError) {
+        llmStatus = '⚠️';
+        llmDetails = `${provider} configured but unreachable: ${testError.message}`;
+        llmOk = true; // Warning, not error
+      }
+    }
+  } catch (error) {
+    llmStatus = '❌';
+    llmDetails = `Error: ${error.message}`;
+    llmOk = false;
+    exitCode = 1;
+  }
+  
+  checks.push({
+    name: 'LLM',
+    status: llmStatus,
+    details: llmDetails,
+    ok: llmOk
+  });
+  
+  // Check 4: OpenClaw plugin
+  let pluginStatus = '✅';
+  let pluginDetails = 'OpenClaw plugin found';
+  let pluginOk = true;
+  
+  const pluginPath = path.join(__dirname, '..', 'extensions', 'openclaw-plugin');
+  if (!fs.existsSync(pluginPath)) {
+    pluginStatus = '⚠️';
+    pluginDetails = 'Plugin directory not found (optional)';
+    pluginOk = true; // Not critical
+  } else {
+    // Check if plugin manifest exists
+    const manifestPath = path.join(pluginPath, 'openclaw.plugin.json');
+    if (!fs.existsSync(manifestPath)) {
+      pluginStatus = '⚠️';
+      pluginDetails = 'Plugin manifest missing';
+      pluginOk = true; // Not critical
+    }
+  }
+  
+  checks.push({
+    name: 'Plugin',
+    status: pluginStatus,
+    details: pluginDetails,
+    ok: pluginOk
+  });
+  
+  // Check 5: Test suite
+  let testStatus = '✅';
+  let testDetails = '';
+  let testOk = true;
+  
+  try {
+    const testDir = path.join(__dirname, '../test');
+    
+    if (!fs.existsSync(testDir)) {
+      testStatus = '⚠️';
+      testDetails = 'Test directory not found';
+      testOk = true; // Not critical for end users
+    } else {
+      // Count test files
+      const attacksDir = path.join(testDir, 'attacks');
+      const benignDir = path.join(testDir, 'benign');
+      
+      let attackCount = 0;
+      let benignCount = 0;
+      
+      if (fs.existsSync(attacksDir)) {
+        attackCount = fs.readdirSync(attacksDir).filter(f => f.endsWith('.txt')).length;
+      }
+      
+      if (fs.existsSync(benignDir)) {
+        benignCount = fs.readdirSync(benignDir).filter(f => f.endsWith('.txt')).length;
+      }
+      
+      const totalTests = attackCount + benignCount;
+      
+      if (totalTests === 0) {
+        testStatus = '⚠️';
+        testDetails = 'No test files found';
+        testOk = true;
+      } else {
+        testDetails = `${totalTests} tests available (run 'hopeid test' to execute)`;
+      }
+    }
+  } catch (error) {
+    testStatus = '⚠️';
+    testDetails = `Error checking tests: ${error.message}`;
+    testOk = true; // Not critical
+  }
+  
+  checks.push({
+    name: 'Tests',
+    status: testStatus,
+    details: testDetails,
+    ok: testOk
+  });
+  
+  // Check 6: Config file
+  let configStatus = '✅';
+  let configDetails = '';
+  let configOk = true;
+  
+  const homeDir = os.homedir();
+  const configPaths = [
+    path.join(homeDir, '.hopeid', 'config.json'),
+    path.join(homeDir, '.config', 'hopeid', 'config.json')
+  ];
+  
+  let configFound = false;
+  for (const configPath of configPaths) {
+    if (fs.existsSync(configPath)) {
+      configDetails = configPath;
+      configFound = true;
+      break;
+    }
+  }
+  
+  if (!configFound) {
+    configStatus = 'ℹ️';
+    configDetails = 'No config file (using defaults)';
+    configOk = true; // Config is optional
+  }
+  
+  checks.push({
+    name: 'Config',
+    status: configStatus,
+    details: configDetails,
+    ok: configOk
+  });
+  
+  // Print results
+  for (const check of checks) {
+    const padding = ' '.repeat(Math.max(0, 12 - check.name.length));
+    console.log(`  ${check.name}:${padding}${check.status} ${check.details}`);
+  }
+  
+  console.log();
+  
+  // Summary
+  const failed = checks.filter(c => !c.ok).length;
+  const warnings = checks.filter(c => c.ok && c.status !== '✅').length;
+  
+  if (failed > 0) {
+    console.log(`❌ ${failed} check(s) failed`);
+  } else if (warnings > 0) {
+    console.log(`⚠️  ${warnings} warning(s) - hopeIDS is functional but some features may be limited`);
+  } else {
+    console.log('✅ All checks passed - hopeIDS is healthy!');
+  }
+  
+  console.log();
+  
+  process.exit(exitCode);
 }
 
 async function handleSetup(args) {
